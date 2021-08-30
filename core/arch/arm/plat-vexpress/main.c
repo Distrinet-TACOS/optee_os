@@ -23,6 +23,7 @@
 #include <stdint.h>
 #include <string.h>
 #include <trace.h>
+#include <testpta.h>
 
 static struct gic_data gic_data __nex_bss;
 static struct pl011_data console_data __nex_bss;
@@ -87,6 +88,7 @@ void console_init(void)
 	pl011_init(&console_data, CONSOLE_UART_BASE, CONSOLE_UART_CLK_IN_HZ,
 		   CONSOLE_BAUDRATE);
 	register_serial_console(&console_data.chip);
+    register_serial_chip(&console_data.chip);
 }
 
 #if defined(IT_CONSOLE_UART) && \
@@ -124,7 +126,7 @@ static TEE_Result init_console_itr(void)
 	itr_enable(IT_CONSOLE_UART);
 	return TEE_SUCCESS;
 }
-driver_init(init_console_itr);
+// driver_init(init_console_itr);
 #endif
 
 #ifdef CFG_TZC400
