@@ -687,3 +687,10 @@ ifeq (,$(CFG_HWRNG_QUALITY))
 $(error CFG_HWRNG_QUALITY not defined)
 endif
 endif
+
+# CFG_CORE_ASYNC_NOTIF_INTID is defined by the platform to some free
+# interrupt. Setting it to a non-zero number enables support for sending
+# asynchronous notifications to normal world.
+# If the system uses an Arm-GIC it should use a value larger than 31 to
+# make it of the type SPI.
+CFG_CORE_ASYNC_NOTIF_INTID ?= 0
