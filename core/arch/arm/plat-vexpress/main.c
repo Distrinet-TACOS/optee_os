@@ -173,7 +173,7 @@ static TEE_Result init_console_itr(void)
 		notif_register_driver(&console_notif);
 	return TEE_SUCCESS;
 }
-// driver_init(init_console_itr);
+driver_init(init_console_itr);
 #endif
 
 #ifdef CFG_TZC400
