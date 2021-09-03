@@ -55,8 +55,8 @@ static TEE_Result disable_itr(void) {
 }
 
 static TEE_Result invoke_command(void *session __unused, uint32_t cmd,
-                                 uint32_t ptypes,
-                                 TEE_Param params[TEE_NUM_PARAMS]) {
+                                 uint32_t ptypes __unused,
+                                 TEE_Param params[TEE_NUM_PARAMS] __unused) {
   switch (cmd) {
     case PTA_REGISTER_ITR:
         return register_itr();

@@ -7,7 +7,9 @@ ifeq ($(CFG_WITH_USER_TA),y)
 srcs-$(CFG_SECSTOR_TA_MGMT_PTA) += secstor_ta_mgmt.c
 endif
 srcs-$(CFG_WITH_STATS) += stats.c
+ifeq ($(PLATFORM),vexpress)
 srcs-y += testpta.c
+endif
 srcs-$(CFG_SYSTEM_PTA) += system.c
 srcs-$(CFG_NXP_SE05X) += scp03.c
 srcs-$(CFG_SCMI_PTA) += scmi.c
