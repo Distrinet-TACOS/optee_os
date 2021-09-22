@@ -96,7 +96,7 @@ static void tee_entry_exchange_capabilities(struct thread_smc_args *args)
 	args->a1 |= OPTEE_SMC_SEC_CAP_MEMREF_NULL;
 	if (CFG_CORE_ASYNC_NOTIF_INTID) {
 		args->a1 |= OPTEE_SMC_SEC_CAP_ASYNC_NOTIF;
-		args->a2 = CFG_CORE_ASYNC_NOTIF_INTID;
+		args->a2 = 260;
 		args->a3 = NOTIF_VALUE_MAX;
 	}
 	DMSG("Asynchronous notifications are %sabled",

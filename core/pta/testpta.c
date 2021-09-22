@@ -54,6 +54,14 @@ static TEE_Result disable_itr(void) {
     return TEE_SUCCESS;
 }
 
+static TEE_Result open_session(uint32_t nParamTypes __unused,
+			TEE_Param pParams[TEE_NUM_PARAMS] __unused,
+			void **ppSessionContext __unused) {
+    
+    IMSG("Session opened.");
+    return TEE_SUCCESS;
+}
+
 static TEE_Result invoke_command(void *session __unused, uint32_t cmd,
                                  uint32_t ptypes __unused,
                                  TEE_Param params[TEE_NUM_PARAMS] __unused) {
@@ -71,4 +79,5 @@ static TEE_Result invoke_command(void *session __unused, uint32_t cmd,
 }
 
 pseudo_ta_register(.uuid = PTA_TEST_PRINT_UUID, .name = PTA_NAME,
-    .flags = PTA_DEFAULT_FLAGS, .invoke_command_entry_point = invoke_command);
+    .flags = PTA_DEFAULT_FLAGS, .invoke_command_entry_point = invoke_command,
+    .open_session_entry_point = open_session);

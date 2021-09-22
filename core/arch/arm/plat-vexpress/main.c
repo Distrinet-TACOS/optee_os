@@ -25,7 +25,11 @@
 #include <stdint.h>
 #include <string.h>
 #include <trace.h>
+#ifdef PLATFORM_FLAVOR_qemu_virt
 #include <testpta.h>
+#include <drivers/console_split.h>
+#endif
+#include <io.h>
 
 static struct gic_data gic_data __nex_bss;
 static struct pl011_data console_data __nex_bss;
@@ -92,6 +96,7 @@ void console_init(void)
 	register_serial_console(&console_data.chip);
     #ifdef PLATFORM_FLAVOR_qemu_virt
     register_serial_chip(&console_data.chip);
+    register_serial_chip_con_split(&console_data.chip);
     #endif
 }
 
@@ -175,7 +180,7 @@ static TEE_Result init_console_itr(void)
 		notif_register_driver(&console_notif);
 	return TEE_SUCCESS;
 }
-driver_init(init_console_itr);
+// driver_init(init_console_itr);
 #endif
 
 #ifdef CFG_TZC400
