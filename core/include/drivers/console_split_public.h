@@ -15,7 +15,6 @@
 #define UUID11 0xfe
 
 enum con_split_command {
-	READ_CHAR,
 	REGISTER_ITR,
 	UNREGISTER_ITR,
 	WRITE_CHARS,
@@ -27,10 +26,9 @@ enum con_split_command {
 #define BUFFER_SIZE 256
 
 struct update_buffer {
+	uint32_t sess_id;
 	char buf[256];
 	unsigned int count;
-	uint32_t sess_id;
-	struct update_buffer *next;
 };
 
 #endif /* CONSOLE_SPLIT_PUBLIC */
