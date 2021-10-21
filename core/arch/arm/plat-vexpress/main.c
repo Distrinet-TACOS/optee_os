@@ -27,7 +27,7 @@
 #include <trace.h>
 #ifdef PLATFORM_FLAVOR_qemu_virt
 #include <testpta.h>
-#include <drivers/console_split.h>
+#include <drivers/secure_ssp_driver.h>
 #endif
 #include <io.h>
 
@@ -94,10 +94,10 @@ void console_init(void)
 	pl011_init(&console_data, CONSOLE_UART_BASE, CONSOLE_UART_CLK_IN_HZ,
 		   CONSOLE_BAUDRATE);
 	register_serial_console(&console_data.chip);
-    #ifdef PLATFORM_FLAVOR_qemu_virt
-    register_serial_chip(&console_data.chip);
-    register_serial_chip_con_split(&console_data.chip);
-    #endif
+#ifdef PLATFORM_FLAVOR_qemu_virt
+	register_serial_chip(&console_data.chip);
+	register_serial_chip_con_split(&console_data.chip);
+#endif
 }
 
 #if defined(IT_CONSOLE_UART) && \

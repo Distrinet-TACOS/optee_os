@@ -1,7 +1,7 @@
-#ifndef CONSOLE_SPLIT_PUBLIC
-#define CONSOLE_SPLIT_PUBLIC
+#ifndef SECURE_SSP_DRIVER_PUBLIC
+#define SECURE_SSP_DRIVER_PUBLIC
 
-#define PTA_NAME "Secure world split driver"
+#define PTA_NAME "Secure world ssp driver"
 #define UUID1 0x661b512b
 #define UUID2 0x53a3
 #define UUID3 0x4cec
@@ -18,17 +18,9 @@ enum con_split_command {
 	REGISTER_ITR,
 	UNREGISTER_ITR,
 	WRITE_CHARS,
-	ENABLE_NOTIF,
-	DISABLE_NOTIF,
 	UPDATE_BUFFER
 };
 
 #define BUFFER_SIZE 256
 
-struct update_buffer {
-	uint32_t sess_id;
-	char buf[256];
-	unsigned int count;
-};
-
-#endif /* CONSOLE_SPLIT_PUBLIC */
+#endif /* SECURE_SSP_DRIVER_PUBLIC */
