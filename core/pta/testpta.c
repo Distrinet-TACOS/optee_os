@@ -39,7 +39,7 @@ static struct itr_handler console_itr = {
 DECLARE_KEEP_PAGER(console_itr);
 
 static TEE_Result register_itr(void) {
-    IMSG("Registering console interrupt.\n");
+    DMSG("Registering console interrupt.\n");
     itr_add(&console_itr);
     itr_set_affinity(console_itr.it, 1);
     itr_enable(console_itr.it);
@@ -48,7 +48,7 @@ static TEE_Result register_itr(void) {
 }
 
 static TEE_Result disable_itr(void) {
-    IMSG("Disabling console interrupt.\n");
+    DMSG("Disabling console interrupt.\n");
     itr_disable(IT_CONSOLE_UART);
 
     return TEE_SUCCESS;
@@ -58,7 +58,7 @@ static TEE_Result open_session(uint32_t nParamTypes __unused,
 			TEE_Param pParams[TEE_NUM_PARAMS] __unused,
 			void **ppSessionContext __unused) {
     
-    IMSG("Session opened.");
+    DMSG("Session opened.");
     return TEE_SUCCESS;
 }
 

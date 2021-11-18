@@ -210,6 +210,7 @@ static void get_async_notif_value(struct thread_smc_args *args)
  */
 void __tee_entry_fast(struct thread_smc_args *args)
 {
+	DMSG("Invoking print function at entry_fast.c:6bf571");
 	switch (args->a0) {
 
 	/* Generic functions */

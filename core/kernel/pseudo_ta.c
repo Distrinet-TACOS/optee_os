@@ -143,6 +143,8 @@ static void unmap_mapped_param(struct tee_ta_param *param,
 
 static TEE_Result pseudo_ta_enter_open_session(struct ts_session *s)
 {
+	DMSG("Invoking print function at pseudo_ta.c:e7afe1");
+
 	TEE_Result res = TEE_SUCCESS;
 	struct pseudo_ta_ctx *stc = to_pseudo_ta_ctx(s->ctx);
 	struct tee_ta_session *ta_sess = to_ta_session(s);

@@ -677,6 +677,7 @@ static TEE_Result tee_ta_init_session(TEE_ErrorOrigin *err,
 		goto out;
 
 	/* Look for pseudo TA */
+	DMSG("Invoking print function at tee_ta_manager.c:b1b0c1");
 	res = tee_ta_init_pseudo_ta_session(uuid, s);
 	if (res == TEE_SUCCESS || res != TEE_ERROR_ITEM_NOT_FOUND)
 		goto out;
@@ -712,6 +713,8 @@ TEE_Result tee_ta_open_session(TEE_ErrorOrigin *err,
 	struct ts_ctx *ts_ctx = NULL;
 	bool panicked = false;
 	bool was_busy = false;
+
+	DMSG("Invoking print function at tee_ta_manager.c:0d3d39");
 
 	res = tee_ta_init_session(err, open_sessions, uuid, &s);
 	if (res != TEE_SUCCESS) {

@@ -116,6 +116,8 @@ static TEE_Result invoke_command(void *pSessionContext __unused, uint32_t cmd,
 
 static TEE_Result create_entry_point(void)
 {
+	DMSG("Invoking print function at secure_controller.c:819791");
+
 	// Try to get async notification value. Return error if failed.
 	if (!notif_async_is_enabled() || !notif_async_is_started()) {
 		EMSG("Notifications are not yet available!!!\n");
@@ -131,7 +133,16 @@ static TEE_Result create_entry_point(void)
 	}
 }
 
+static TEE_Result open_session_entry_point(uint32_t nParamTypes,
+				    TEE_Param pParams[TEE_NUM_PARAMS],
+				    void **ppSessionContext)
+{
+	DMSG("Invoking print function at secure_controller.c:161eb2");
+	return TEE_SUCCESS;
+}
+
 pseudo_ta_register(.uuid = SEC_CONT_UUID, .name = PTA_NAME,
 		   .flags = PTA_MANDATORY_FLAGS,
 		   .invoke_command_entry_point = invoke_command,
-		   .create_entry_point = create_entry_point);
+		   .create_entry_point = create_entry_point,
+		   .open_session_entry_point = open_session_entry_point);

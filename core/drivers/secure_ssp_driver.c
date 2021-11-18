@@ -38,7 +38,7 @@ struct buf_entry {
 
 struct device {
 	bool itr_enabled;
-	unsigned int buf_len;
+		unsigned int buf_len;
 	STAILQ_HEAD(buf_head, buf_entry) buffer;
 };
 
@@ -49,10 +49,11 @@ union {
 	struct device *dev_array[2];
 } devices = { { NULL, NULL } };
 
-char *write_prefix = "";
+const char *write_prefix = "";
 
 static struct itr_handler console_itr = {
-	.it = IT_CONSOLE_UART,
+	// .it = CFG_UART_BASE,
+	.it = 59,
 	.flags = ITRF_TRIGGER_LEVEL,
 	.handler = console_split_itr_cb,
 };
