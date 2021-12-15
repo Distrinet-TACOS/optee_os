@@ -37,6 +37,6 @@ struct imx_uart_data {
 	struct serial_chip chip;
 };
 
-void imx_uart_init(struct imx_uart_data *pd, paddr_t base);
+void imx_uart_init(struct imx_uart_data *pd, paddr_t pbase);
 
 #endif /* IMX_UART_H */
