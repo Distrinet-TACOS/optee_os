@@ -260,6 +260,7 @@ ifneq (,$(filter $(PLATFORM_FLAVOR),mx6qsabrelite mx6dlsabrelite))
 CFG_DDR_SIZE ?= 0x40000000
 CFG_NS_ENTRY_ADDR ?= 0x12000000
 CFG_UART_BASE ?= UART2_BASE
+CFG_CORE_ASYNC_NOTIF_INTID ?= 219
 endif
 
 ifneq (,$(filter $(PLATFORM_FLAVOR),mx6slevk))
