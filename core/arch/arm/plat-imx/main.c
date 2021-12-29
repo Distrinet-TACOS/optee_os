@@ -44,7 +44,9 @@
 #include <sm/optee_smc.h>
 #include <stdint.h>
 
+#ifdef CFG_SHARED_SECURE_PERIPHERALS
 #include <drivers/secure_ssp_driver.h>
+#endif
 
 static struct gic_data gic_data __nex_bss;
 
@@ -115,8 +117,9 @@ void console_init(void)
 	imx_uart_init(&console_data, CONSOLE_UART_BASE);
 	register_serial_console(&console_data.chip);
 
-	IMSG("Registering serial chip");
+#ifdef CFG_SHARED_SECURE_PERIPHERALS
 	register_serial_chip_con_split(&console_data.chip);
+#endif
 #endif
 }
 
@@ -137,8 +140,7 @@ void main_init_gic(void)
 	vaddr_t gicc_base;
 	vaddr_t gicd_base;
 
-	gicc_base = core_mmu_get_va(GIC_BASE + GICC_OFFSET, MEM_AREA_IO_SEC,
-				    1);
+	gicc_base = core_mmu_get_va(GIC_BASE + GICC_OFFSET, MEM_AREA_IO_SEC, 1);
 	gicd_base = core_mmu_get_va(GIC_BASE + GICD_OFFSET, MEM_AREA_IO_SEC,
 				    0x10000);
 

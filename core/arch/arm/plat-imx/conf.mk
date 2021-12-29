@@ -449,3 +449,5 @@ endif
 
 # Cryptographic configuration
 include core/arch/arm/plat-imx/crypto_conf.mk
+
+CFG_SHARED_SECURE_PERIPHERALS ?= y
