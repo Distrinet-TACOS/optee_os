@@ -38,7 +38,7 @@ struct buf_entry {
 
 struct device {
 	bool itr_enabled;
-		unsigned int buf_len;
+	unsigned int buf_len;
 	STAILQ_HEAD(buf_head, buf_entry) buffer;
 };
 
@@ -114,6 +114,8 @@ static TEE_Result write_chars(bool secure __unused, uint32_t ptypes,
 	memcpy(local, write_prefix, 5);
 	memcpy(&local[5], ": ", 2);
 	memcpy(&local[7], buf, size);
+
+	IMSG("%s", local);
 
 	return TEE_SUCCESS;
 }
@@ -203,17 +205,21 @@ static TEE_Result open_session(uint32_t ptypes __unused,
 	struct ts_session *s = ts_get_calling_session();
 	if (s && is_ta_ctx(s->ctx) && !devices.sec_dev) {
 		secure = malloc(sizeof(bool));
-		devices.sec_dev = malloc(sizeof(struct device));
-
 		*secure = true;
+
+		devices.sec_dev = malloc(sizeof(struct device));
+		memset(devices.sec_dev, 0, sizeof(struct device));
 		devices.sec_dev->itr_enabled = false;
+
 		STAILQ_INIT(&devices.sec_dev->buffer);
 	} else if (!devices.norm_dev) {
 		secure = malloc(sizeof(bool));
-		devices.norm_dev = malloc(sizeof(struct device));
-
 		*secure = false;
+
+		devices.norm_dev = malloc(sizeof(struct device));
+		memset(devices.norm_dev, 0, sizeof(struct device));
 		devices.norm_dev->itr_enabled = false;
+
 		STAILQ_INIT(&devices.norm_dev->buffer);
 	} else {
 		return TEE_ERROR_ACCESS_CONFLICT;
