@@ -18,7 +18,7 @@
 		}                                                              \
 	}
 
-static uint32_t notif_value = 0;
+static uint32_t notif_value = -1;
 
 struct app {
 	TEE_UUID uuid;
@@ -27,7 +27,7 @@ struct app {
 };
 static SLIST_HEAD(app_head, app) apps = SLIST_HEAD_INITIALIZER(apps);
 
-// TEE_Result ssp_register(TEE_UUID uuid)
+// TEE_Result sec_ssp_register(TEE_UUID uuid)
 // {
 // 	struct app *entry = malloc(sizeof(struct app));
 // 	entry->uuid = uuid;
@@ -35,9 +35,9 @@ static SLIST_HEAD(app_head, app) apps = SLIST_HEAD_INITIALIZER(apps);
 // 	return TEE_SUCCESS;
 // }
 
-TEE_Result ssp_notify(TEE_UUID uuid)
+TEE_Result sec_ssp_notify(TEE_UUID uuid)
 {
-	if (notif_value == 0) {
+	if (notif_value < 0) {
 		return TEE_ERROR_BAD_STATE;
 	}
 
@@ -60,6 +60,9 @@ static TEE_Result get_notif_value(uint32_t ptypes,
 
 	if (ptypes != expected_ptypes)
 		return TEE_ERROR_BAD_PARAMETERS;
+
+	if (notif_value < 0)
+		return TEE_ERROR_BAD_STATE;
 
 	params[0].value.a = notif_value;
 	return TEE_SUCCESS;
@@ -116,33 +119,15 @@ static TEE_Result invoke_command(void *pSessionContext __unused, uint32_t cmd,
 
 static TEE_Result create_entry_point(void)
 {
-	DMSG("Invoking print function at secure_controller.c:819791");
-
-	// Try to get async notification value. Return error if failed.
 	if (!notif_async_is_enabled() || !notif_async_is_started()) {
 		EMSG("Notifications are not yet available!!!\n");
 		return TEE_ERROR_BAD_STATE;
 	}
 
-	TEE_Result res = notif_alloc_async_value(&notif_value);
-	if (res != TEE_SUCCESS)
-		return TEE_ERROR_OUT_OF_MEMORY;
-	else {
-		IMSG("Notification value: %d.\n", notif_value);
-		return TEE_SUCCESS;
-	}
-}
-
-static TEE_Result open_session_entry_point(uint32_t nParamTypes,
-				    TEE_Param pParams[TEE_NUM_PARAMS],
-				    void **ppSessionContext)
-{
-	DMSG("Invoking print function at secure_controller.c:161eb2");
-	return TEE_SUCCESS;
+	return notif_alloc_async_value(&notif_value);
 }
 
 pseudo_ta_register(.uuid = SEC_CONT_UUID, .name = PTA_NAME,
 		   .flags = PTA_MANDATORY_FLAGS,
 		   .invoke_command_entry_point = invoke_command,
-		   .create_entry_point = create_entry_point,
-		   .open_session_entry_point = open_session_entry_point);
+		   .create_entry_point = create_entry_point);

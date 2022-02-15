@@ -89,7 +89,7 @@ console_split_itr_cb(struct itr_handler *handler __unused)
 	}
 
 	// Send notification that a serial interrupt was received.
-	TEE_Result res = ssp_notify(sec_ssp_driver_uuid);
+	TEE_Result res = sec_ssp_notify(sec_ssp_driver_uuid);
 	if (res) {
 		EMSG("Error sending notification.\n");
 	}
@@ -231,7 +231,7 @@ static TEE_Result open_session(uint32_t ptypes __unused,
 
 static TEE_Result create_entry_point(void)
 {
-	// return ssp_register(sec_ssp_driver_uuid);
+	// return sec_ssp_register(sec_ssp_driver_uuid);
 	return TEE_SUCCESS;
 }
 
