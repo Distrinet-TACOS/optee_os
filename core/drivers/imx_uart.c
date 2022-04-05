@@ -50,7 +50,8 @@
 #define UBMR 	0xa8	/* BRM Modulator Register */
 #define UBRC 	0xac	/* Baud Rate Count Register */
 #define UTS 	0xb4	/* UART Test Register (mx31) */
-#define USIZE 	0xb8	/* UTS + sizeof(uint32_t) */
+#define UMCR	0xb8	/* UART RS-485 Mode Control Register */
+#define USIZE 	UMCR + sizeof(uint32_t) /* UMCR + sizeof(uint32_t) */
 
 /* UART Control Register Bit Fields. */
 #define URXD_CHARRDY	(1 << 15)
@@ -166,7 +167,7 @@ static void imx_uart_flush(struct serial_chip *chip)
 			return;
 }
 
-static int imx_uart_have_rx_data(struct serial_chip *chip)
+static bool imx_uart_have_rx_data(struct serial_chip *chip)
 {
 	vaddr_t base = chip_to_base(chip);
 
