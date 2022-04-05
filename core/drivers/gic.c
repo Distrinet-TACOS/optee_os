@@ -78,6 +78,7 @@ static void gic_op_raise_sgi(struct itr_chip *chip, size_t it,
 			uint8_t cpu_mask);
 static void gic_op_set_affinity(struct itr_chip *chip, size_t it,
 			uint8_t cpu_mask);
+static void gic_op_set_priority(struct itr_chip *chip, size_t it, size_t prio);
 
 static const struct itr_ops gic_ops = {
 	.add = gic_op_add,
@@ -86,6 +87,7 @@ static const struct itr_ops gic_ops = {
 	.raise_pi = gic_op_raise_pi,
 	.raise_sgi = gic_op_raise_sgi,
 	.set_affinity = gic_op_set_affinity,
+	.set_priority = gic_op_set_priority,
 };
 DECLARE_KEEP_PAGER(gic_ops);
 
@@ -130,6 +132,44 @@ out:
 	io_write32(gicc_base + GICC_CTLR, old_ctlr);
 #endif
 	return ret;
+}
+
+static void gic_it_enable(struct gic_data *gd, size_t it);
+static void gic_it_disable(struct gic_data *gd, size_t it);
+static bool gic_it_is_enabled(struct gic_data *gd, size_t it);
+
+static size_t probe_max_prio(struct gic_data *gd) {
+	bool is_enabled;
+	uint8_t old_prio;
+	uint8_t max;
+	uint8_t step;
+	uint8_t tmp;
+
+	assert(gd->max_it);
+
+	// Suspend interrupt.
+	is_enabled = gic_it_is_enabled(gd, gd->max_it);
+	if (is_enabled) {
+		gic_it_disable(gd, gd->max_it);
+	}
+	old_prio = io_read8(gd->gicd_base + GICD_IPRIORITYR(0) + gd->max_it);
+
+	io_write8(gd->gicd_base + GICD_IPRIORITYR(0) + gd->max_it, 0xff);
+	max = io_read8(gd->gicd_base + GICD_IPRIORITYR(0) + gd->max_it);
+
+	step = ~max + 1;
+	gd->prio_shift = 0;
+	tmp = step;
+	while (tmp >>= 1)
+		gd->prio_shift++;
+
+	// Resume interrupt.
+	io_write8(gd->gicd_base + GICD_IPRIORITYR(0) + gd->max_it, old_prio);
+	if (is_enabled) {
+		gic_it_enable(gd, gd->max_it);
+	}
+
+	return max / step;
 }
 
 void gic_cpu_init(struct gic_data *gd)
@@ -237,6 +277,7 @@ void gic_init_base_addr(struct gic_data *gd, vaddr_t gicc_base __maybe_unused,
 	gd->gicc_base = gicc_base;
 	gd->gicd_base = gicd_base;
 	gd->max_it = probe_max_it(gicc_base, gicd_base);
+	gd->max_prio = probe_max_prio(gd);
 	gd->chip.ops = &gic_ops;
 
 	if (IS_ENABLED(CFG_DT))
@@ -282,7 +323,7 @@ static void gic_it_set_cpu_mask(struct gic_data *gd, size_t it,
 	DMSG("cpu_mask: 0x%x", io_read32(itargetsr));
 }
 
-static void gic_it_set_prio(struct gic_data *gd, size_t it, uint8_t prio)
+static void gic_it_set_prio(struct gic_data *gd, size_t it, size_t prio)
 {
 	size_t idx __maybe_unused = it / NUM_INTS_PER_REG;
 	uint32_t mask __maybe_unused = 1 << (it % NUM_INTS_PER_REG);
@@ -291,9 +332,10 @@ static void gic_it_set_prio(struct gic_data *gd, size_t it, uint8_t prio)
 	assert(!(io_read32(gd->gicd_base + GICD_IGROUPR(idx)) & mask));
 
 	/* Set prio it to selected CPUs */
+	uint8_t prio_field = prio << gd->prio_shift;
 	DMSG("prio: writing 0x%x to 0x%" PRIxVA,
 		prio, gd->gicd_base + GICD_IPRIORITYR(0) + it);
-	io_write8(gd->gicd_base + GICD_IPRIORITYR(0) + it, prio);
+	io_write8(gd->gicd_base + GICD_IPRIORITYR(0) + it, prio_field);
 }
 
 static void gic_it_enable(struct gic_data *gd, size_t it)
@@ -301,12 +343,15 @@ static void gic_it_enable(struct gic_data *gd, size_t it)
 	size_t idx = it / NUM_INTS_PER_REG;
 	uint32_t mask = 1 << (it % NUM_INTS_PER_REG);
 	vaddr_t base = gd->gicd_base;
+	IMSG("Invoking print function at gic.c:75ca77\n");
 
 	/* Assigned to group0 */
 	assert(!(io_read32(base + GICD_IGROUPR(idx)) & mask));
+	IMSG("Invoking print function at gic.c:06c46a\n");
 
 	/* Enable the interrupt */
 	io_write32(base + GICD_ISENABLER(idx), mask);
+	IMSG("Invoking print function at gic.c:29a7c1\n");
 }
 
 static void gic_it_disable(struct gic_data *gd, size_t it)
@@ -438,7 +483,7 @@ static void gic_op_add(struct itr_chip *chip, size_t it,
 	gic_it_add(gd, it);
 	/* Set the CPU mask to deliver interrupts to any online core */
 	gic_it_set_cpu_mask(gd, it, 0xff);
-	gic_it_set_prio(gd, it, 0x1);
+	gic_it_set_prio(gd, it, 1);
 }
 
 static void gic_op_enable(struct itr_chip *chip, size_t it)
@@ -493,4 +538,14 @@ static void gic_op_set_affinity(struct itr_chip *chip, size_t it,
 		panic();
 
 	gic_it_set_cpu_mask(gd, it, cpu_mask);
+}
+
+static void gic_op_set_priority(struct itr_chip *chip, size_t it, size_t prio)
+{
+	struct gic_data *gd = container_of(chip, struct gic_data, chip);
+
+	if (it > gd->max_it || prio > gd->max_prio)
+		panic();
+
+	gic_it_set_prio(gd, it, prio);
 }

@@ -19,6 +19,8 @@ struct gic_data {
 	vaddr_t gicc_base;
 	vaddr_t gicd_base;
 	size_t max_it;
+	size_t max_prio;
+	size_t prio_shift;
 	struct itr_chip chip;
 };
 
