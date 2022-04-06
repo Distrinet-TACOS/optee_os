@@ -74,7 +74,7 @@ static enum itr_return schedule_tasks(struct itr_handler *handler __unused)
 
 	CIRCLEQ_FOREACH(t, &sched.task_list, entries)
 	{
-		IMSG("Executing task %s, call no. %d\n", t->name, count);
+		// IMSG("Executing task %s, call no. %d\n", t->name, count);
 		t->func();
 		count++;
 	}
@@ -106,8 +106,8 @@ static TEE_Result scheduler_init(void)
 	io_write32(sched.epit_base + EPITCR, 0x0);
 	io_write32(sched.epit_base + EPITCR, config);
 	io_write32(sched.epit_base + EPITSR, 0x1);
-	io_write32(sched.epit_base + EPITLR, 1000);
-	io_write32(sched.epit_base + EPITCMPR, 1000);
+	io_write32(sched.epit_base + EPITLR, 500);
+	io_write32(sched.epit_base + EPITCMPR, 500);
 	// Only enabling EPIT now as explained in 24.5.1 in manual.
 	io_write32(sched.epit_base + EPITCR, io_read32(sched.epit_base + EPITCR) | EPITCR_EN);
 
