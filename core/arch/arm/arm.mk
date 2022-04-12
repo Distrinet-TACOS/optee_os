@@ -112,7 +112,7 @@ CFG_CORE_UNMAP_CORE_AT_EL0 ?= y
 
 # Initialize PMCR.DP to 1 to prohibit cycle counting in secure state, and
 # save/restore PMCR during world switch.
-CFG_SM_NO_CYCLE_COUNTING ?= y
+CFG_SM_NO_CYCLE_COUNTING ?= n
 
 ifeq ($(CFG_ARM32_core),y)
 # Configration directive related to ARMv7 optee boot arguments.
