@@ -49,7 +49,9 @@ union {
 	struct device *dev_array[2];
 } devices = { { NULL, NULL } };
 
-const char *write_prefix = "";
+#define WRITE_PREFIX 	"Normal World"
+#define OUT_BUFF_SIZE	500
+static char out_buff[OUT_BUFF_SIZE] = {0};
 
 static struct itr_handler console_itr = {
 	// .it = CFG_UART_BASE,
@@ -110,12 +112,11 @@ static TEE_Result write_chars(bool secure __unused, uint32_t ptypes,
 
 	char *buf = params[0].memref.buffer;
 	unsigned int size = params[0].memref.size;
-	char local[5 + 2 + size];
-	memcpy(local, write_prefix, 5);
-	memcpy(&local[5], ": ", 2);
-	memcpy(&local[7], buf, size);
 
-	IMSG("%s", local);
+	memset(out_buff, 0, OUT_BUFF_SIZE);
+	memcpy(out_buff, buf, size);
+
+	IMSG("%s: %s", WRITE_PREFIX, out_buff);
 
 	return TEE_SUCCESS;
 }
