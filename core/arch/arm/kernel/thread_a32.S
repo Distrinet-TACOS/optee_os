@@ -435,9 +435,11 @@ END_FUNC thread_unwind_user_mode
 	.else
 	push	{r0-r3, r12, lr}
 	.endif
-
+	
 	bl	thread_check_canaries
+	bl	vAssertInASM3
 	bl	itr_core_handler
+	bl	vAssertInASM4
 
 	mrs	r0, spsr
 	cmp_spsr_user_mode r0

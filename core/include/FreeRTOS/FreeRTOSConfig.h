@@ -2,17 +2,18 @@
 #define FREERTOS_CONFIG_H
 
 #define configUSE_PREEMPTION                    1
+#define configUSE_TIME_SLICING                  1
 #define configUSE_PORT_OPTIMISED_TASK_SELECTION 0
 #define configUSE_TICKLESS_IDLE                 0
 #define configCPU_CLOCK_HZ                      10000000
 #define configSYSTICK_CLOCK_HZ                  1000000
-#define configTICK_RATE_HZ                      3
+#define configTICK_RATE_HZ                      0.2
 #define configMAX_PRIORITIES                    5
 #define configMINIMAL_STACK_SIZE                128
 #define configMAX_TASK_NAME_LEN                 16
 #define configUSE_16_BIT_TICKS                  0
 #define configIDLE_SHOULD_YIELD                 1
-#define configUSE_TASK_NOTIFICATIONS            1
+#define configUSE_TASK_NOTIFICATIONS            0
 #define configTASK_NOTIFICATION_ARRAY_ENTRIES   3
 #define configUSE_MUTEXES                       0
 #define configUSE_RECURSIVE_MUTEXES             0
@@ -20,7 +21,6 @@
 #define configUSE_ALTERNATIVE_API               0 /* Deprecated! */
 #define configQUEUE_REGISTRY_SIZE               10
 #define configUSE_QUEUE_SETS                    0
-#define configUSE_TIME_SLICING                  0
 #define configUSE_NEWLIB_REENTRANT              0
 #define configENABLE_BACKWARD_COMPATIBILITY     0
 #define configNUM_THREAD_LOCAL_STORAGE_POINTERS 5
@@ -30,11 +30,11 @@
 #define configINTERRUPT_CONTROLLER_BASE_ADDRESS						0x00A00000  // GIC_BASE
 #define configINTERRUPT_CONTROLLER_CPU_INTERFACE_OFFSET				0x100       // GICC_OFFSET
 #define configINTERRUPT_CONTROLLER_DISTRIBUTOR_INTERFACE_OFFSET		0x1000      // GICD_OFFSET
-#define configUSE_TASK_FPU_SUPPORT              2
-#define configUNIQUE_INTERRUPT_PRIORITIES       16
+#define configUSE_TASK_FPU_SUPPORT              1
+#define configUNIQUE_INTERRUPT_PRIORITIES       32
 
-void vConfigureTickInterrupt(void);
-#define configSETUP_TICK_INTERRUPT() vConfigureTickInterrupt()
+//void vConfigureTickInterrupt(void);
+#define configSETUP_TICK_INTERRUPT() //vConfigureTickInterrupt()
 
 /* Memory allocation related definitions. */
 #define configSUPPORT_STATIC_ALLOCATION             0
@@ -52,8 +52,8 @@ void vConfigureTickInterrupt(void);
 
 /* Run time and task stats gathering related definitions. */
 #define configGENERATE_RUN_TIME_STATS           0
-#define configUSE_TRACE_FACILITY                0
-#define configUSE_STATS_FORMATTING_FUNCTIONS    0
+#define configUSE_TRACE_FACILITY                1               
+#define configUSE_STATS_FORMATTING_FUNCTIONS    1
 
 /* Co-routine related definitions. */
 #define configUSE_CO_ROUTINES                   0
@@ -68,13 +68,10 @@ void vConfigureTickInterrupt(void);
 /* Interrupt nesting behaviour configuration. */
 #define configKERNEL_INTERRUPT_PRIORITY         0
 #define configMAX_SYSCALL_INTERRUPT_PRIORITY    5
-#define configMAX_API_CALL_INTERRUPT_PRIORITY   10
+#define configMAX_API_CALL_INTERRUPT_PRIORITY   24
 
 /* Define to trap errors during development. */
-void vAssertCalled();
-void vAssertCalled_int(unsigned int x);
-void vAssertCalled_imsg(char* s);
-#define configASSERT( x ) if( ( x ) == 0 ) vAssertCalled()
+#define configASSERT( x ) if( ( x ) == 0 ) assert(x)
 
 /* FreeRTOS MPU specific definitions. */
 #define configINCLUDE_APPLICATION_DEFINED_PRIVILEGED_FUNCTIONS 0
@@ -107,5 +104,9 @@ void vAssertCalled_imsg(char* s);
 #define INCLUDE_xTaskResumeFromISR              1
 
 /* A header file that defines trace macro can be included here. */
+#include <trace.h>
+#include <io.h>
+#include <mm/core_memprot.h>
+#include <assert.h>
 
 #endif /* FREERTOS_CONFIG_H */

@@ -167,6 +167,7 @@ UNWIND(	.cantunwind)
 	b	.sm_exit
 
 .smc_from_nsec:
+
 	/*
 	 * As we're coming from non-secure world (NS bit set) the stack
 	 * pointer points to sm_ctx.nsec.r0 at this stage. After the
@@ -422,3 +423,4 @@ FUNC sm_get_nsec_ctx , :
 
 	bx	lr
 END_FUNC sm_get_nsec_ctx
+

@@ -70,6 +70,9 @@
 #define GICC_IAR_CPU_ID_MASK	0x7
 #define GICC_IAR_CPU_ID_SHIFT	10
 
+/*	FreeRTOS IRQ Handler	*/
+extern void FreeRTOS_IRQ_Handler( void );
+
 static void gic_op_add(struct itr_chip *chip, size_t it, uint32_t flags);
 static void gic_op_enable(struct itr_chip *chip, size_t it);
 static void gic_op_disable(struct itr_chip *chip, size_t it);
@@ -464,10 +467,21 @@ void gic_it_handle(struct gic_data *gd)
 	iar = gic_read_iar(gd);
 	id = iar & GICC_IAR_IT_ID_MASK;
 
-	if (id <= gd->max_it)
+	if (id == 88){
+		
 		itr_handle(id);
-	else
+		gic_write_eoir(gd, iar);
+
+		/* Call FREERTOS IRQ Handler from portASM.S	*/
+		FreeRTOS_IRQ_Handler();
+		return;
+	}
+	else if (id <= gd->max_it){
+		itr_handle(id);
+	}
+	else{
 		DMSG("ignoring interrupt %" PRIu32, id);
+	}
 
 	gic_write_eoir(gd, iar);
 }

@@ -34,6 +34,7 @@
 /* Scheduler includes. */
 #include <FreeRTOS/FreeRTOS.h>
 #include <FreeRTOS/task.h>
+#include <kernel/scheduler.h>
 
 #ifndef configINTERRUPT_CONTROLLER_BASE_ADDRESS
 	#error configINTERRUPT_CONTROLLER_BASE_ADDRESS must be defined.  See https://www.FreeRTOS.org/Using-FreeRTOS-on-Cortex-A-Embedded-Processors.html
@@ -78,7 +79,7 @@
 /* Some vendor specific files default configCLEAR_TICK_INTERRUPT() in
 portmacro.h. */
 #ifndef configCLEAR_TICK_INTERRUPT
-	#define configCLEAR_TICK_INTERRUPT()
+	#define configCLEAR_TICK_INTERRUPT()	vClearEpitInterrupt()
 #endif
 
 /* A critical section is exited when the critical section nesting count reaches
@@ -128,13 +129,13 @@ the CPU itself before modifying certain hardware registers. */
 
 
 /* Macro to unmask all interrupt priorities. */
-#define portCLEAR_INTERRUPT_MASK()									\
-{																	\
-	portCPU_IRQ_DISABLE();											\
-	io_write32(portICCPMR_PRIORITY_MASK_REGISTER, portUNMASK_VALUE);			\
-	__asm volatile (	"DSB		\n"								\
-						"ISB		\n" );							\
-	portCPU_IRQ_ENABLE();											\
+#define portCLEAR_INTERRUPT_MASK()										\
+{																		\
+	portCPU_IRQ_DISABLE();												\
+	io_write8(portICCPMR_PRIORITY_MASK_REGISTER_VA, portUNMASK_VALUE);	\
+	__asm volatile (	"DSB		\n"									\
+						"ISB		\n" );								\
+	portCPU_IRQ_ENABLE();												\
 }
 
 #define portINTERRUPT_PRIORITY_REGISTER_OFFSET		0x400UL
@@ -221,9 +222,9 @@ __attribute__(( used )) const uint32_t ulMaxAPIPriorityMask = ( configMAX_API_CA
  */
 void vInitAssemblyForOPTEE(void){
 
-	ulICCIAR = ( uint32_t ) phys_to_virt_io(portICCIAR_INTERRUPT_ACKNOWLEDGE_REGISTER_ADDRESS, 0x1);
-	ulICCEOIR = ( uint32_t ) phys_to_virt_io(portICCEOIR_END_OF_INTERRUPT_REGISTER_ADDRESS, 0x1);
-	ulICCPMR = ( uint32_t ) phys_to_virt_io(portICCPMR_PRIORITY_MASK_REGISTER_ADDRESS, 0x1);
+	ulICCIAR = ( uint32_t ) phys_to_virt_io( (paddr_t) portICCIAR_INTERRUPT_ACKNOWLEDGE_REGISTER_ADDRESS, 0x1);
+	ulICCEOIR = ( uint32_t ) phys_to_virt_io( (paddr_t) portICCEOIR_END_OF_INTERRUPT_REGISTER_ADDRESS, 0x1);
+	ulICCPMR = ( uint32_t ) phys_to_virt_io( (paddr_t) portICCPMR_PRIORITY_MASK_REGISTER_ADDRESS, 0x1);
 }
 
 /*
@@ -328,7 +329,7 @@ static void prvTaskExitError( void )
 
 	Artificially force an assert() to be triggered if configASSERT() is
 	defined, then stop here so application writers can catch the error. */
-	configASSERT( ulPortInterruptNesting == ~0UL );
+	// configASSERT( ulPortInterruptNesting == ~0UL );
 	portDISABLE_INTERRUPTS();
 	for( ;; );
 }
@@ -336,42 +337,38 @@ static void prvTaskExitError( void )
 
 BaseType_t xPortStartScheduler( void )
 {
-uint32_t ulAPSR;
+	uint32_t ulAPSR;
 
 	vInitAssemblyForOPTEE();
 
 	#if( configASSERT_DEFINED == 1 )
 	{
 		volatile uint32_t ulOriginalPriority;
-		vaddr_t pucFirstUserPriorityRegister = (vaddr_t) phys_to_virt_io(( portINTERRUPT_CONTROLLER_DISTRIBUTOR_INTERFACE_ADDRESS + portINTERRUPT_PRIORITY_REGISTER_OFFSET ), 0x1);
+		vaddr_t pucFirstUserPriorityRegisterVA = (vaddr_t) phys_to_virt_io(( portINTERRUPT_CONTROLLER_DISTRIBUTOR_INTERFACE_ADDRESS + portINTERRUPT_PRIORITY_REGISTER_OFFSET ), 0x1);
 		volatile uint8_t ucMaxPriorityValue;
 
 		/* Determine how many priority bits are implemented in the GIC.
 
 		Save the interrupt priority value that is about to be clobbered. */
-		ulOriginalPriority = io_read8(pucFirstUserPriorityRegister);
-
+		ulOriginalPriority = io_read32(pucFirstUserPriorityRegisterVA);
 		/* Determine the number of priority bits available.  First write to
 		all possible bits. */
-		io_write8(pucFirstUserPriorityRegister, portMAX_8_BIT_VALUE);
+		io_write8(pucFirstUserPriorityRegisterVA, portMAX_8_BIT_VALUE);
 
 		/* Read the value back to see how many bits stuck. */
-		ucMaxPriorityValue = io_read8(pucFirstUserPriorityRegister);
-		
+		ucMaxPriorityValue = io_read32(pucFirstUserPriorityRegisterVA);
 		/* Shift to the least significant bits. */
 		while( ( ucMaxPriorityValue & portBIT_0_SET ) != portBIT_0_SET )
 		{
-			
 			ucMaxPriorityValue >>= ( uint8_t ) 0x01;
 		}
-
 		/* Sanity check configUNIQUE_INTERRUPT_PRIORITIES matches the read
 		value. */
 		configASSERT( ucMaxPriorityValue == portLOWEST_INTERRUPT_PRIORITY );
 		
 		/* Restore the clobbered interrupt priority register to its original
 		value. */
-		io_write32(pucFirstUserPriorityRegister, ulOriginalPriority);
+		io_write32(pucFirstUserPriorityRegisterVA, ulOriginalPriority);
 	}
 	#endif /* conifgASSERT_DEFINED */
 
@@ -386,9 +383,9 @@ uint32_t ulAPSR;
 		/* Only continue if the binary point value is set to its lowest possible
 		setting.  See the comments in vPortValidateInterruptPriority() below for
 		more information. */
-		configASSERT( ( io_read32(portICCBPR_BINARY_POINT_REGISTER) & portBINARY_POINT_BITS ) <= portMAX_BINARY_POINT_VALUE );
+		configASSERT( ( io_read32( (vaddr_t) portICCBPR_BINARY_POINT_REGISTER_VA) & portBINARY_POINT_BITS ) <= portMAX_BINARY_POINT_VALUE );
 
-		if( ( io_read32(portICCBPR_BINARY_POINT_REGISTER) & portBINARY_POINT_BITS ) <= portMAX_BINARY_POINT_VALUE )
+		if( ( io_read32( (vaddr_t) portICCBPR_BINARY_POINT_REGISTER_VA) & portBINARY_POINT_BITS ) <= portMAX_BINARY_POINT_VALUE )
 		{
 			/* Interrupts are turned off in the CPU itself to ensure tick does
 			not execute	while the scheduler is being started.  Interrupts are
@@ -400,8 +397,8 @@ uint32_t ulAPSR;
 			configSETUP_TICK_INTERRUPT();
 
 			/* Start the first task executing. */
-			vAssertCalled_imsg("Go to assembly yeahh");
-			vPortRestoreTaskContext();
+			// vPortRestoreTaskContext();	// First EPIT interrupt after schekduler start will start tasks
+			return pdPASS;
 		}
 	}
 
@@ -467,17 +464,18 @@ void vPortExitCritical( void )
 
 void FreeRTOS_Tick_Handler( void )
 {
+	IMSG("Increment Tick");
 	/* Set interrupt mask before altering scheduler structures.   The tick
 	handler runs at the lowest priority, so interrupts cannot already be masked,
 	so there is no need to save and restore the current mask value.  It is
 	necessary to turn off interrupts in the CPU itself while the ICCPMR is being
 	updated. */
 	portCPU_IRQ_DISABLE();
-	io_write32(portICCPMR_PRIORITY_MASK_REGISTER, ( uint32_t ) ( configMAX_API_CALL_INTERRUPT_PRIORITY << portPRIORITY_SHIFT ));
+	io_write8( (vaddr_t) portICCPMR_PRIORITY_MASK_REGISTER_VA, ulMaxAPIPriorityMask );
 	__asm volatile (	"dsb		\n"
 						"isb		\n" ::: "memory" );
 	portCPU_IRQ_ENABLE();
-
+	
 	/* Increment the RTOS tick. */
 	if( xTaskIncrementTick() != pdFALSE )
 	{
@@ -494,14 +492,16 @@ void FreeRTOS_Tick_Handler( void )
 
 	void vPortTaskUsesFPU( void )
 	{
-	uint32_t ulInitialFPSCR = 0;
+		// uint32_t ulInitialFPSCR = 0;
 
 		/* A task is registering the fact that it needs an FPU context.  Set the
 		FPU flag (which is saved as part of the task context). */
-		ulPortTaskHasFPUContext = pdTRUE;
+		// ulPortTaskHasFPUContext = pdTRUE;
+		ulPortTaskHasFPUContext = pdFALSE;
 
 		/* Initialise the floating point status register. */
-		__asm volatile ( "FMXR 	FPSCR, %0" :: "r" (ulInitialFPSCR) : "memory" );
+		// __asm volatile ( "FMXR 	FPSCR, %0" :: "r" (ulInitialFPSCR) : "memory" );
+		IMSG("Floating Point Unit isn't implemented yet");
 	}
 
 #endif /* configUSE_TASK_FPU_SUPPORT */
@@ -525,7 +525,7 @@ uint32_t ulReturn;
 	updated. */
 	portCPU_IRQ_DISABLE();
 
-	if( io_read32(portICCPMR_PRIORITY_MASK_REGISTER) == ( uint32_t ) ( configMAX_API_CALL_INTERRUPT_PRIORITY << portPRIORITY_SHIFT ) )
+	if( io_read8( (vaddr_t) portICCPMR_PRIORITY_MASK_REGISTER_VA) == ulMaxAPIPriorityMask )
 	{
 		/* Interrupts were already masked. */
 		ulReturn = pdTRUE;
@@ -533,7 +533,7 @@ uint32_t ulReturn;
 	else
 	{
 		ulReturn = pdFALSE;
-		io_write32(portICCPMR_PRIORITY_MASK_REGISTER, ( uint32_t ) ( configMAX_API_CALL_INTERRUPT_PRIORITY << portPRIORITY_SHIFT ) );
+		io_write8( (vaddr_t) portICCPMR_PRIORITY_MASK_REGISTER_VA, ulMaxAPIPriorityMask );
 		__asm volatile (	"dsb		\n"
 							"isb		\n" ::: "memory" );
 	}
@@ -562,7 +562,7 @@ uint32_t ulReturn;
 
 		FreeRTOS maintains separate thread and ISR API functions to ensure
 		interrupt entry is as fast and simple as possible. */
-		configASSERT( io_read32(portICCRPR_RUNNING_PRIORITY_REGISTER) >= ( uint32_t ) ( configMAX_API_CALL_INTERRUPT_PRIORITY << portPRIORITY_SHIFT ) );
+		configASSERT(io_read8(portICCRPR_RUNNING_PRIORITY_REGISTER_VA) >= ulMaxAPIPriorityMask );
 
 		/* Priority grouping:  The interrupt controller (GIC) allows the bits
 		that define each interrupt's priority to be split between bits that
@@ -574,7 +574,7 @@ uint32_t ulReturn;
 		The priority grouping is configured by the GIC's binary point register
 		(ICCBPR).  Writting 0 to ICCBPR will ensure it is set to its lowest
 		possible value (which may be above 0). */
-		configASSERT( ( io_read32(portICCBPR_BINARY_POINT_REGISTER) & portBINARY_POINT_BITS ) <= portMAX_BINARY_POINT_VALUE );
+		configASSERT( ( io_read32(portICCBPR_BINARY_POINT_REGISTER_VA) & portBINARY_POINT_BITS ) <= portMAX_BINARY_POINT_VALUE );
 	}
 
 #endif /* configASSERT_DEFINED */

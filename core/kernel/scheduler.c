@@ -12,93 +12,143 @@
 #include <tee_api_types.h>
 #include <trace.h>
 #include <kernel/notif.h>
-
-#include <FreeRTOS/FreeRTOS.h>
-#include <FreeRTOS/timers.h>
-#include <FreeRTOS/task.h>
-
 #include <kernel/scheduler.h>
 
-TimerHandle_t xTimers;
+#include <FreeRTOS/FreeRTOSConfig.h>
+#include <FreeRTOS/FreeRTOS.h>
+#include <FreeRTOS/portmacro.h>
+#include <FreeRTOS/task.h>
+#include <FreeRTOS/timers.h>
 
-// ---
-TaskHandle_t test_handler;
-static void test_tasks(void *pvParameters){
-	IMSG("TEST TASKS\n");
-}
-// ---
+#define EPIT_BASE_VA	((uint32_t) phys_to_virt_io(EPIT_BASE_PA, 0x1))
 
-void vAssertCalled(){
-	//taskDISABLE_INTERRUPTS();
-    IMSG("Assertion called");
-    //while(true);
-}
+extern void FreeRTOS_IRQ_Handler();
 
-void vAssertCalled_int(unsigned int x){
-    IMSG("Assertion int called : %x", x);
-}
+void vAssertInASM0(){
+	uint32_t cpsr;
 
-void vAssertCalled_imsg(char* s){
-    IMSG("Assertion imsg called : %s", s);
+	asm volatile ("mrs	%[cpsr], cpsr"
+			: [cpsr] "=r" (cpsr)
+	);
+
+	IMSG("Before switch sys mode : Current mode : %x", cpsr);
 }
 
-struct task {
-	char *name;
-	void (*func)(void);
-	CIRCLEQ_ENTRY(task) entries;
-};
+void vAssertInASM(){
 
-static struct scheduler {
-	CIRCLEQ_HEAD(task_list_head, task) task_list;
-	vaddr_t epit_base;
-} sched = { .task_list = CIRCLEQ_HEAD_INITIALIZER(sched.task_list) };
+	uint32_t cpsr;
 
-void register_task(const char *name, void (*func)(void))
-{
-	struct task *t = malloc(sizeof(struct task));
-	t->name = strdup(name);
-	t->func = func;
+	asm volatile ("mrs	%[cpsr], cpsr"
+			: [cpsr] "=r" (cpsr)
+	);
 
-	CIRCLEQ_INSERT_TAIL(&sched.task_list, t, entries);
+	IMSG("Current mode : %x", cpsr);
 }
 
-static int count = 0;
+void vAssertInASM1(){
+	IMSG(" - Call Normal World from vector_fiq_entry");
+}
 
-// void vTimerCallback( TimerHandle_t xTimer ){
+void vAssertInASM2(){
+	IMSG(" -! Return Normal World to vector_fiq_entry");
+}
 
-// 	uint32_t ulCount;
+void vAssertInASM3(){
+	IMSG(" - Call Secure World from native_intr_handler");
+}
+void vAssertInASM4(){
+	IMSG(" -! Return Secure World to native_intr_handler");
+}
 
-// 	/* The number of times this timer has expired is saved as the
-//     timer's ID.  Obtain the count. */
-//     ulCount = ( uint32_t ) pvTimerGetTimerID( xTimer );
+void vAssertInASM5(){
+	IMSG("From ASM 5");
+}
 
-// 	IMSG("Before : ulCount = %u", ulCount);
+void vAssertInASM6(){
+	IMSG("From ASM 6");
+}
+void vAssertInASM7(){
+	IMSG("From ASM 7");
+}
+void vAssertInASM8(){
+	IMSG("From ASM 8");
+}
 
-//     /* Increment the count, then test to see if the timer has expired
-//     ulMaxExpiryCountBeforeStopping yet. */
-//     ulCount++;
+void vAssertInASMr0(uint32_t x){
+	IMSG("Check r0 : %x", x);
+}
 
-// 	vTimerSetTimerID( xTimer, ( void * ) ulCount );
+TaskHandle_t test1_handler, test2_handler;
+static void test1_tasks(void *pvParameters){
+	/* Stop warnings. */
+	( void ) pvParameters;
 
-// 	ulCount = ( uint32_t ) pvTimerGetTimerID( xTimer );
+	while(1){
+		IMSG("TEST 1 TASKS\n");
+		
+		vTaskDelay(1);	// 1 ticks
+	}
+}
 
-// 	IMSG("After : ulCount = %u", ulCount);
-// }
+static void test2_tasks(void *pvParameters){
+	/* Stop warnings. */
+	( void ) pvParameters;
 
-// vConfigureTickInterrupt
-static enum itr_return schedule_tasks(struct itr_handler *handler __unused){
+	volatile TickType_t tick; 
+	while(1){
+
+		IMSG("----- TEST 2 TASKS\n");
+		// tick = xTaskGetTickCount();
+		// IMSG("	Count of ticks since scheduler started : %u\n", tick);
+		
+		vTaskDelay(2);	// 2 ticks
+	}
+}
+
+void vCreateTestsTasks(void){
+
+	BaseType_t xReturn = pdFAIL;
+
+	// xReturn = xTaskCreate( test1_tasks, "TEST1", configMINIMAL_STACK_SIZE, ( void * ) NULL, ( UBaseType_t ) 1, &test1_handler );      		
+
+	// if(xReturn != pdPASS){
+	// 	IMSG("Couldn't create test1_tasks");
+	// 	while(1);
+	// }	
 	
-	IMSG("I'm interrupting");
-	struct task *t;
+	xReturn = xTaskCreate( test2_tasks, "TEST2", configMINIMAL_STACK_SIZE, ( void * ) NULL, ( UBaseType_t ) 1, &test2_handler );      		
 
-	// Clearing interrupt.
-	io_write32(sched.epit_base + EPITSR, 0x1);
+	if(xReturn != pdPASS){
+		IMSG("Couldn't create test2_tasks");
+		while(1);
+	}
+}
 
-	CIRCLEQ_FOREACH(t, &sched.task_list, entries)
-	{
-		IMSG("Executing task %s, call no. %d\n", t->name, count);
-		t->func();
-		count++;
+extern volatile BaseType_t xSchedulerRunning;
+
+void vClearEpitInterrupt(void){
+	/*	Clearing interrupt	*/
+	io_write32(EPIT_BASE_VA + EPITSR, 0x1);
+}
+
+static enum itr_return vTickInterrupt(void){
+	
+	static uint32_t delay = 6; // 25s delai
+
+	IMSG("FreeRTOS TickInterrupt");
+
+	switch (delay){
+		case 0:
+			FreeRTOS_Tick_Handler();
+			break;
+		case 1:
+			vCreateTestsTasks();
+			vTaskStartScheduler();
+		default:
+			delay--;
+			IMSG("delay = %u", delay);
+			vClearEpitInterrupt();
+			break;
 	}
 
 	return ITRR_HANDLED;
@@ -107,94 +157,33 @@ static enum itr_return schedule_tasks(struct itr_handler *handler __unused){
 static struct itr_handler schedule_itr = {
 	.it = 88,
 	.flags = ITRF_TRIGGER_LEVEL,
-	.handler = schedule_tasks,
+	.handler = vTickInterrupt,
 };
 DECLARE_KEEP_PAGER(schedule_itr);
 
-static void lol(void)
-{
-	IMSG("---");
-	TickType_t temp = xTaskGetTickCount();
-	IMSG("LOL func = %u", temp);
-}
+static TEE_Result scheduler_init(void){
 
-// static void pop(void)
-// {	
-// 	IMSG("---");
-// 	if( xTimerIsTimerActive( xTimers ) != pdFALSE ){
-// 		TickType_t expiryTime = xTimerGetExpiryTime(xTimers);
-// 	IMSG("expiryTime = %u", expiryTime);
-// 	}
-// 	else{
-// 		// If xTimers isn't active, we start it
-// 		IMSG("xTimers start...");
-// 		if( xTimerStart( xTimers, 0 ) != pdPASS )
-// 		{
-// 			IMSG("The timer Timer_test could not be set into the Active state.");
-// 		}
-// 	}
-// }
-
-// void xTimers_init(void){
-
-// 	xTimers = xTimerCreate( "Timer_test", 10, pdTRUE, ( void * ) 0, vTimerCallback);
-
-// 	if( xTimers == NULL ){
-// 		IMSG("The timer Timer_test was not created.");
-// 	}
-// }
-
-static TEE_Result scheduler_init(void)
-{
-	IMSG("Start Adding timer interrupt\n");
-	sched.epit_base = (vaddr_t)phys_to_virt_io(EPIT_BASE_PA, 0x1);
 	uint32_t config = EPITCR_CLKSRC_REF_LOW | EPITCR_IOVW |
 			  EPITCR_PRESC(32) | EPITCR_RLD | EPITCR_OCIEN |
 			  EPITCR_ENMOD;
 
-	io_write32(sched.epit_base + EPITCR, 0x0);
-	io_write32(sched.epit_base + EPITCR, config);
-	io_write32(sched.epit_base + EPITSR, 0x1);
-	io_write32(sched.epit_base + EPITLR, 3000);
+	io_write32(EPIT_BASE_VA + EPITCR, 0x0);
+	io_write32(EPIT_BASE_VA + EPITCR, config);
+	io_write32(EPIT_BASE_VA + EPITSR, 0x1);
+	io_write32(EPIT_BASE_VA + EPITLR, 5000);
 
-	io_write32(sched.epit_base + EPITCMPR, 3000);
+	io_write32(EPIT_BASE_VA + EPITCMPR, 5000);
 	// Only enabling EPIT now as explained in 24.5.1 in manual.
-	io_write32(sched.epit_base + EPITCR, io_read32(sched.epit_base + EPITCR) | EPITCR_EN);
+	io_write32(EPIT_BASE_VA + EPITCR, io_read32(EPIT_BASE_VA + EPITCR) | EPITCR_EN);
 
 	itr_add(&schedule_itr);
 	itr_set_affinity(schedule_itr.it, 1);
 	itr_set_priority(schedule_itr.it, 0);
 
-	IMSG("End Added timer interrupt\n");
-
-	register_task("test", lol);
-	// register_task("test2", pop);
-
-	/* --- */
-	IMSG("Start scheduler\n");
-	vTaskStartScheduler();
-	IMSG("End Start scheduler\n");
-	/* -- */
+	IMSG("Enable EPIT TIMER");
+	itr_enable(schedule_itr.it);
 
 	return TEE_SUCCESS;
-}
-
-void vConfigureTickInterrupt(void){
-
-	static int is_enable = 0;
-	
-	if(!is_enable){
-		IMSG("---");
-		IMSG("Enable EPIT TIMER");
-		is_enable = 1;
-		register_task("FreeRTOS_timer", vConfigureTickInterrupt);
-		itr_enable(schedule_itr.it);
-		IMSG("End enable EPIT TIMER");
-		IMSG("---");
-	}
-	else{
-		IMSG("-- I'm interrupting for FreeRTOS --");
-	}
 }
 
 boot_final(scheduler_init);

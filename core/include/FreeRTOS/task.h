@@ -3044,6 +3044,8 @@ TaskHandle_t pvTaskIncrementMutexHeldCount( void ) PRIVILEGED_FUNCTION;
  */
 void vTaskInternalSetTimeOutState( TimeOut_t * const pxTimeOut ) PRIVILEGED_FUNCTION;
 
+/* Custom function for OPTEE scheduling */
+void vInitOPTEEStack(void);
 
 /* *INDENT-OFF* */
 #ifdef __cplusplus

@@ -31,6 +31,7 @@
 	.set SYS_MODE,	0x1f
 	.set SVC_MODE,	0x13
 	.set IRQ_MODE,	0x12
+	.set FIQ_MODE,	0x11
 
 	/* Hardware registers. */
 	.extern ulICCIAR
@@ -41,6 +42,7 @@
 	.extern ulMaxAPIPriorityMask
 	.extern _freertos_vector_table
 	.extern pxCurrentTCB
+	.extern pxOpteeTopOfStack
 	.extern vTaskSwitchContext
 	.extern vApplicationIRQHandler
 	.extern ulPortInterruptNesting
@@ -49,8 +51,8 @@
 	.global FreeRTOS_IRQ_Handler
 	.global FreeRTOS_SWI_Handler
 	.global vPortRestoreTaskContext
-
-
+	.global vApplicationIdleHook
+	.global portRESTORE_OPTEE_CONTEXT
 
 
 .macro portSAVE_CONTEXT
@@ -68,7 +70,7 @@
 
 	/* Does the task have a floating point context that needs saving?  If
 	ulPortTaskHasFPUContext is 0 then no. */
-	LDR		R2, ulPortTaskHasFPUContextConst
+	LDR		R2, ulPortTaskHasFPUContextConst		// Remove floating-point feature
 	LDR		R3, [R2]
 	CMP		R3, #0
 
@@ -99,7 +101,7 @@
 
 	/* Is there a floating point context to restore?  If the restored
 	ulPortTaskHasFPUContext is zero then no. */
-	LDR		R0, ulPortTaskHasFPUContextConst
+	LDR		R0, ulPortTaskHasFPUContextConst		// Remove floating-point feature
 	POP		{R1}
 	STR		R1, [R0]
 	CMP		R1, #0
@@ -128,13 +130,10 @@
 	being used). */
 	POP		{R0-R12, R14}
 
-	/* Return to the task code, loading CPSR on the way. */
-	RFEIA	sp!
+	// /* Return to the task code, loading CPSR on the way. */
+	// RFEIA	sp!
 
 	.endm
-
-
-
 
 /******************************************************************************
  * SVC handler is used to start the scheduler.
@@ -144,10 +143,13 @@
 FreeRTOS_SWI_Handler:
 	/* Save the context of the current task and select a new task to run. */
 	portSAVE_CONTEXT
+
 	LDR R0, vTaskSwitchContextConst
 	BLX	R0
 	portRESTORE_CONTEXT
 
+	/* Return to the task code, loading CPSR on the way. */
+	RFEIA	sp!
 
 /******************************************************************************
  * vPortRestoreTaskContext is used to start the scheduler.
@@ -158,12 +160,85 @@ vPortRestoreTaskContext:
 	CPS		#SYS_MODE
 	portRESTORE_CONTEXT
 
+	/* Return to the task code, loading CPSR on the way. */
+	RFEIA	sp!
+
 .align 4
 .type FreeRTOS_IRQ_Handler, %function
 FreeRTOS_IRQ_Handler:
-	/* Return to the interrupted instruction. */
-	SUB		lr, lr, #4
+	/* Save used registers */
+	PUSH	{r0-r4, lr}
 
+	/* Check status of scheduler */
+	LDR		r0, =xSchedulerRunning
+	LDR		r0, [r0]
+	CMP		r0, #0		
+	/* Return if scheduler isn't running */		
+	POPEQ	{r0-r4, pc}
+	
+	/* If call from thread_optee_smc_a32, save context for futur context
+	 * switch between FreeRTOS and OPTEE */
+	LDR		r0, =uSwitchFromOPTEE
+	LDR		r1, [r0]
+	CMP		r1, #1
+	BNE		next_save_optee_context
+
+save_optee_context:
+	/* Enter this section if the interrupt handler come from vector_fiq_entry 
+	   Save OPTEE context for futur uses */
+	/* Reset uSwitchFromOPTEE */
+	MOV		r2, #0
+	STR		r2, [r0]
+	
+	/* Restore OPTEE registers */
+	POP		{r0-r4, lr}
+	
+	/* Push registers, return address, and SPSR */
+	PUSH	{r0-r12, lr}
+	MRS		lr, cpsr
+	PUSH	{lr}
+
+	/* Save the stack pointer in the OPTEESP. */
+	LDR		r0, pxOpteeTopOfStackConst
+	STR		sp, [r0]
+
+	LDR		r0, =testqq
+	LDR		r1, [r0]
+	CMP		r1, #1
+	BEQ		continue
+
+	MOV		r2, #1
+	STR		r2, [r0]
+
+	/* Switch to system mode. */
+	CPS		#SYS_MODE
+
+	/* Restore first task context */
+	portRESTORE_CONTEXT
+
+	/* Return to the task code, loading CPSR on the way. */
+	RFEIA	sp!
+
+continue:
+	// MOV		r2, #0
+	// STR		r2, [r0]
+
+/* Switch to system mode. */
+	CPS		#SYS_MODE
+
+	/* Restore first task context */
+	portRESTORE_CONTEXT
+
+	/* Return to the task code, loading CPSR on the way. */
+	MOV		pc, lr
+
+next_save_optee_context:
+	/* Enter this section if the interrupt handler come from native_intr_handler */
+
+	POP		{r0-r4, lr}
+	/* POP register which are are push in native_intr_handler */
+	POP		{r0-r3, r8-r12, lr}
+	
 	/* Push the return address and SPSR. */
 	PUSH	{lr}
 	MRS		lr, SPSR
@@ -178,26 +253,13 @@ FreeRTOS_IRQ_Handler:
 	/* Increment nesting count.  r3 holds the address of ulPortInterruptNesting
 	for future use.  r1 holds the original ulPortInterruptNesting value for
 	future use. */
-	LDR		r3, ulPortInterruptNestingConst
-	LDR		r1, [r3]
-	ADD		r4, r1, #1
-	STR		r4, [r3]
-
-	/* Read value from the interrupt acknowledge register, which is stored in r0
-	for future parameter and interrupt clearing use. */
-	LDR 	r2, ulICCIARConst
-	LDR		r2, [r2]
-	LDR		r0, [r2]
-
-	/* Ensure bit 2 of the stack pointer is clear.  r2 holds the bit 2 value for
-	future use.  _RB_ Does this ever actually need to be done provided the start
-	of the stack is 8-byte aligned? */
-	MOV		r2, sp
-	AND		r2, r2, #4
-	SUB		sp, sp, r2
+	LDR		r0, ulPortInterruptNestingConst
+	LDR		r1, [r0]
+	ADD		r2, r1, #1
+	STR		r2, [r0]
 
 	/* Call the interrupt handler.  r4 pushed to maintain alignment. */
-	PUSH	{r0-r4, lr}
+	PUSH	{r0-r4, lr}							// Remove floating-point feature
 	LDR		r1, vApplicationIRQHandlerConst
 	BLX		r1
 	POP		{r0-r4, lr}
@@ -207,13 +269,8 @@ FreeRTOS_IRQ_Handler:
 	DSB
 	ISB
 
-	/* Write the value read from ICCIAR to ICCEOIR. */
-	LDR 	r4, ulICCEOIRConst
-	LDR		r4, [r4]
-	STR		r0, [r4]
-
 	/* Restore the old nesting count. */
-	STR		r1, [r3]
+	STR		r1, [r0]
 
 	/* A context switch is never performed if the nesting count is not 0. */
 	CMP		r1, #0
@@ -231,14 +288,19 @@ exit_without_switch:
 	/* No context switch.  Restore used registers, LR_irq and SPSR before
 	returning. */
 	POP		{r0-r4, r12}
-	CPS		#IRQ_MODE
-	POP		{LR}
-	MSR		SPSR_cxsf, LR
-	POP		{LR}
-	MOVS	PC, LR
+	CPS		#FIQ_MODE
+	POP		{lr}
+	MSR		SPSR_cxsf, lr
+	POP		{lr}
+
+	/* Push for pop in native_intr_handler */
+	PUSH	{r0-r3, r8-r12, lr}
+
+	MOV		pc, lr
+	bl		vAssertInASM5
 
 switch_before_exit:
-	/* A context swtich is to be performed.  Clear the context switch pending
+	/* A context switch is to be performed.  Clear the context switch pending
 	flag. */
 	MOV		r0, #0
 	STR		r0, [r1]
@@ -246,10 +308,10 @@ switch_before_exit:
 	/* Restore used registers, LR-irq and SPSR before saving the context
 	to the task stack. */
 	POP		{r0-r4, r12}
-	CPS		#IRQ_MODE
-	POP		{LR}
-	MSR		SPSR_cxsf, LR
-	POP		{LR}
+	CPS		#FIQ_MODE
+	POP		{lr}
+	MSR		SPSR_cxsf, lr
+	POP		{lr}
 	portSAVE_CONTEXT
 
 	/* Call the function that selects the new task to execute.
@@ -263,6 +325,45 @@ switch_before_exit:
 	next. */
 	portRESTORE_CONTEXT
 
+	/* Push for pop in native_intr_handler */
+	PUSH	{r0-r3, r8-r12, lr}
+
+	MOV		pc, lr
+	bl		vAssertInASM5
+
+/******************************************************************************
+ * portRESTORE_OPTEE_CONTEXT is called when we have no ready task left other 
+ * than Idle task, and will leave FreeRTOS et go back to OPTEE code 
+ *****************************************************************************/
+.align 4
+.type portRESTORE_OPTEE_CONTEXT, %function
+portRESTORE_OPTEE_CONTEXT:
+	/* Save used registers */
+	PUSH	{r0-r4, lr}	
+
+	/* Reset uSwitchFromOPTEE flag to save OPTEE context at the next interrupt */
+	LDR		r0, =uSwitchFromOPTEE
+	LDR		r1, [r0]
+	MOV		r2, #1
+	STR		r2, [r0]
+
+	/* Restore used registers */
+	POP		{r0-r4, lr}
+
+	/* Save FreeRTOS context */
+	portSAVE_CONTEXT
+
+	/* Restore processor mode */
+	CPS		#SVC_MODE
+
+	/* Set the SP to point to the stack of the task being restored (OPTEE) */
+	LDR		r0, pxOpteeTopOfStackConst
+	LDR		sp, [r0]
+
+	/* Restore SPSR, all registers, and return address to vector_fiq_entry */
+	POP		{lr}
+	MSR		CPSR_cxsf, lr
+	POP		{r0-r12, pc}
 
 /******************************************************************************
  * If the application provides an implementation of vApplicationIRQHandler(),
@@ -300,13 +401,14 @@ vApplicationIRQHandler:
 	VPOP	{D0-D15}
 	VMSR	FPSCR, R0
 
-	POP {PC}
+	POP 	{PC}
 
 
 ulICCIARConst:	.word ulICCIAR
 ulICCEOIRConst:	.word ulICCEOIR
 ulICCPMRConst: .word ulICCPMR
 pxCurrentTCBConst: .word pxCurrentTCB
+pxOpteeTopOfStackConst: .word pxOpteeTopOfStack
 ulCriticalNestingConst: .word ulCriticalNesting
 ulPortTaskHasFPUContextConst: .word ulPortTaskHasFPUContext
 ulMaxAPIPriorityMaskConst: .word ulMaxAPIPriorityMask
@@ -316,8 +418,3 @@ ulPortInterruptNestingConst: .word ulPortInterruptNesting
 vApplicationFPUSafeIRQHandlerConst: .word vApplicationFPUSafeIRQHandler
 
 .end
-
-
-
-
-

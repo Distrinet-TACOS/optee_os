@@ -32,26 +32,7 @@
 
 #define EPIT_BASE_PA 0x20d0000
 
-void register_task(const char *name, void (*func)(void));
-
-/* --- */
-// void vAssertCalled();
-// void vAssertCalled_int(unsigned int x);
-// void vAssertCalled_imsg(char* s);
-void vTimerCallback( TimerHandle_t xTimer );
-void xTimers_init(void);
-/* --- */
+/* Clear EPIT Interrupt */
+void vClearEpitInterrupt(void);
 
 #endif /* SCHEDULER_H */
-
-/*
- mkdir -p <project-dir>
- cd <project-dir>
- git clone https://github.com/Distrinet-TACOS/buildroot.git
- git clone https://github.com/Distrinet-TACOS/buildroot-external-boundary.git
- git clone https://github.com/Distrinet-TACOS/shared-secure-peripherals.git
- make BR2_EXTERNAL=$PWD/buildroot-external-boundary/:$PWD/shared-secure-peripherals/ -C buildroot/ O=$PWD/output imx6q_sabrelite_defconfig
-
-OPTEE_OS_OVERRIDE_SRCDIR = <changes-dir>/optee_os
-LINUX_OVERRIDE_SRCDIR = <changes-dir>/linux
-*/
