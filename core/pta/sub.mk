@@ -14,3 +14,4 @@ srcs-$(CFG_HWRNG_PTA) += hwrng.c
 
 subdirs-y += bcm
 srcs-y += watchdog.c
+srcs-y += linux-reboot.c

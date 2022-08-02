@@ -66,4 +66,6 @@
 #include <config/imx6sll.h>
 #endif
 
+#define MAX_XLAT_TABLES 25
+
 #endif /*PLATFORM_CONFIG_H*/
