@@ -1,9 +1,12 @@
 #include <kernel/pseudo_ta.h>
 #include <tee/tee_supp_plugin_rpc.h>
-#include <initcall.h>
-#include <stdlib.h>
 #include <malloc.h>
-#include <kernel/thread.h>
+#include <io.h>
+#include <mm/core_memprot.h>
+#include <kernel/misc.h>
+#include <imx.h>
+#include <sm/psci.h>
+#include <kernel/interrupt.h>
 
 #define PTA_NAME "linux-reboot.pta"
 
@@ -28,19 +31,43 @@ static const TEE_UUID fs_load_uuid = FS_LOAD_PLUGIN_UUID;
 #define PTA_LINUX_REBOOT_UPDATE 0
 #define FS_LOAD_KERNEL_IMAGE 0
 
-static struct mobj *mobj;
+#define GICC_EOIR (0x010)
+
 static void *img;
 static uint8_t image[10 * 1024 * 1024];
 static const size_t image_size = sizeof(image);
 
+static enum itr_return turn_cpu_off(struct itr_handler *h);
+
+static struct itr_handler handler = {
+	.it = 11,
+	.handler = turn_cpu_off,
+};
+DECLARE_KEEP_PAGER(handler);
+
+static enum itr_return turn_cpu_off(struct itr_handler *h)
+{
+	vaddr_t gicc_base;
+
+	asm volatile("cpsid i" ::: "memory", "cc");
+
+	gicc_base = core_mmu_get_va(GIC_BASE + GICC_OFFSET, MEM_AREA_IO_SEC, 1);
+	io_write32(gicc_base + GICC_EOIR, handler.it);
+
+	psci_cpu_off();
+}
+
 static TEE_Result update_image(uint32_t nParamTypes,
-			       TEE_Param pParams[TEE_NUM_PARAMS])
+			       TEE_Param pParams[TEE_NUM_PARAMS] __unused)
 {
 	uint32_t expected_ptypes =
 		TEE_PARAM_TYPES(TEE_PARAM_TYPE_NONE, TEE_PARAM_TYPE_NONE,
 				TEE_PARAM_TYPE_NONE, TEE_PARAM_TYPE_NONE);
 	unsigned int res;
 	size_t out_len;
+	vaddr_t va;
+	uint32_t val;
+	int i;
 
 	if (nParamTypes != expected_ptypes)
 		return TEE_ERROR_BAD_PARAMETERS;
@@ -57,7 +84,7 @@ static TEE_Result update_image(uint32_t nParamTypes,
 
 	img = malloc(out_len);
 	IMSG("out_len: %zu\n", out_len);
-	IMSG("img: %x\n", img);
+	IMSG("img: %px\n", img);
 
 	res = tee_invoke_supp_plugin_rpc(&fs_load_uuid, FS_LOAD_KERNEL_IMAGE, 0,
 					 img, out_len, &out_len);
@@ -75,6 +102,26 @@ static TEE_Result update_image(uint32_t nParamTypes,
 	IMSG("%x", ((uint8_t *)img)[7]);
 	IMSG("%x", ((uint8_t *)img)[8]);
 	IMSG("%x", ((uint8_t *)img)[9]);
+
+	IMSG("Current core: %x", __get_core_pos());
+
+	itr_add(&handler);
+	itr_raise_sgi(handler.it, 0b1110);
+
+	va = core_mmu_get_va(SRC_BASE, MEM_AREA_IO_SEC, 1);
+
+	for (i = 1; i <= 3; i++) {
+		while (io_read32(va + SRC_GPR1 + i * 8 + 4) != UINT32_MAX)
+			;
+		IMSG("Disabling core %d", i);
+		val = io_read32(va + SRC_SCR);
+		val &= ~BIT32(SRC_SCR_CORE1_ENABLE_OFFSET + i - 1);
+		val |= BIT32(SRC_SCR_CORE1_RST_OFFSET + i - 1);
+		io_write32(va + SRC_SCR, val);
+		imx_set_src_gpr(i, 0);
+	}
+
+	itr_disable(handler.it);
 
 	return TEE_SUCCESS;
 }
