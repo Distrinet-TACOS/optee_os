@@ -38,6 +38,7 @@ FUNC vector_std_smc_entry , : , .identity_map
 UNWIND(	.cantunwind)
 	readjust_pc
 	push	{r4-r7}
+	
 	bl	thread_handle_std_smc
 	add	sp, sp, #(4 * 4)
 	/*
@@ -69,20 +70,7 @@ UNWIND(	.cantunwind)
 	readjust_pc
  	/* Secure Monitor received a FIQ and passed control to us. */
 	bl	thread_check_canaries
-	
-	// --- 
-	push	{r0-r12, lr}
-	bl 		vPrintSMFIQ
-	pop		{r0-r12, lr}
-	// ---
-
 	bl	itr_core_handler
-
-	// --- 
-	/* push	{r0-r12, lr}
-	bl 		vPrintSMFIQret
-	pop		{r0-r12, lr} */
-	// ---
 
 	ldr	r0, =TEESMC_OPTEED_RETURN_FIQ_DONE
 	smc	#0

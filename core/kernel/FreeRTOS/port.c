@@ -330,7 +330,7 @@ static void prvTaskExitError( void )
 
 	Artificially force an assert() to be triggered if configASSERT() is
 	defined, then stop here so application writers can catch the error. */
-	configASSERT( ulPortInterruptNesting == ~0UL );
+	// configASSERT( ulPortInterruptNesting == ~0UL );
 	portDISABLE_INTERRUPTS();
 	for( ;; );
 }
@@ -465,6 +465,7 @@ void vPortExitCritical( void )
 
 void FreeRTOS_Tick_Handler( void )
 {
+	IMSG("Increment Tick");
 	/* Set interrupt mask before altering scheduler structures.   The tick
 	handler runs at the lowest priority, so interrupts cannot already be masked,
 	so there is no need to save and restore the current mask value.  It is

@@ -125,8 +125,8 @@
 	being used). */
 	POP		{R0-R12, R14}
 
-	/* Return to the task code, loading CPSR on the way. */
-	RFEIA	sp!
+	// /* Return to the task code, loading CPSR on the way. */
+	// RFEIA	sp!
 
 	.endm
 
@@ -272,6 +272,9 @@ vPortRestoreTaskContext:
 	CPS		#SYS_MODE
 	portRESTORE_CONTEXT
 
+	/* Return to the task code, loading CPSR on the way. */
+	RFEIA	sp!
+
 .align 4
 .type FreeRTOS_FIQ_Handler, %function
 FreeRTOS_FIQ_Handler:
@@ -310,10 +313,22 @@ keep_running:
 	/* POP register which are are push in native_intr_handler */
 	POP		{r0-r3, r8-r12, lr}
 
-	CPSID	if
-	DSB
-	ISB
+/* Switch to system mode. */
+	CPS		#SYS_MODE
 
+	/* Restore first task context */
+	portRESTORE_CONTEXT
+
+	/* Return to the task code, loading CPSR on the way. */
+	MOV		pc, lr
+
+next_save_optee_context:
+	/* Enter this section if the interrupt handler come from native_intr_handler */
+
+	POP		{r0-r4, lr}
+	/* POP register which are are push in native_intr_handler */
+	POP		{r0-r3, r8-r12, lr}
+	
 	/* Push the return address and SPSR. */
 	PUSH	{lr}
 	MRS		lr, SPSR
@@ -348,7 +363,7 @@ keep_running:
 	ADD		sp, sp, r2
 
 	/* Restore the old nesting count. */
-	STR		r1, [r3]
+	STR		r1, [r0]
 
 	/* A context switch is never performed if the nesting count is not 0. */
 	CMP		r1, #0
@@ -371,11 +386,6 @@ exit_without_switch:
 	MSR		SPSR_cxsf, lr
 	POP		{lr}
 
-	
-	CPSIE	if
-	DSB
-	ISB
-
 	MOVS	pc, lr
 
 switch_before_exit:
@@ -391,10 +401,6 @@ switch_before_exit:
 	POP		{lr}
 	MSR		SPSR_cxsf, lr
 	POP		{lr}
-	
-	CPSIE	f
-	DSB
-	ISB
 	
 	portSAVE_CONTEXT
 
