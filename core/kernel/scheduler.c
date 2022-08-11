@@ -20,18 +20,6 @@
 #include <FreeRTOS/task.h>
 #include <FreeRTOS/timers.h>
 
-#define EPIT1_BASE_VA	((uint32_t) phys_to_virt_io(EPIT1_BASE_PA, 0x1))
-
-void vAssertInASM(){
-	uint32_t cpsr;
-
-	asm volatile ("mrs	%[cpsr], cpsr"
-			: [cpsr] "=r" (cpsr)
-	);
-
-	IMSG("Current mode : %x", cpsr);
-}
-
 void vPrintSMFIQ(){
 	IMSG(" - Go to SW"); 
 }
@@ -162,28 +150,12 @@ void vCreateTestsTasks(void){
 	// }
 }
 
-void vClearEpitInterrupt(void){
-	/*	Clearing interrupt	*/
-	io_write32(EPIT1_BASE_VA + EPITSR, 0x1);
-}
-
 static enum itr_return Epit_Interrupt_Handler(void){
 	
-	static uint32_t delay = (uint32_t) 20000/EPIT1_PERIODE_MS;
+	FreeRTOS_Tick_Handler();
+	/*	Clearing interrupt	*/
+	io_write32(EPIT1_BASE_VA + EPITSR, 0x1);
 
-	switch (delay){
-		case 0:
-			FreeRTOS_Tick_Handler();
-			break;
-		case 1:
-			vCreateTestsTasks();
-			vTaskStartScheduler();
-		default:
-			delay--;
-			IMSG("delay = %u", delay);
-			vClearEpitInterrupt();
-			break;
-	}
 	return ITRR_HANDLED;
 }
 
@@ -215,6 +187,9 @@ static TEE_Result scheduler_init(void){
 
 	IMSG("Enable EPIT TIMER");
 	itr_enable(schedule_itr.it);
+
+	vCreateTestsTasks();
+	vTaskStartScheduler();
 
 	return TEE_SUCCESS;
 }

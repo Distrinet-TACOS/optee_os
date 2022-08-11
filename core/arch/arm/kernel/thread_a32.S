@@ -437,9 +437,7 @@ END_FUNC thread_unwind_user_mode
 	.endif
 	
 	bl	thread_check_canaries
-	bl	vAssertInASM3
 	bl	itr_core_handler
-	bl	vAssertInASM4
 
 	mrs	r0, spsr
 	cmp_spsr_user_mode r0
@@ -792,11 +790,6 @@ optee_svc_handler:
 	/* end thread_svc_handler */
 
 __thread_fiq_handler:
-// --- 
-	push	{r0-r12, lr}
-	bl 		vPrintFIQ
-	pop		{r0-r12, lr}
-	// ---
 #if defined(CFG_ARM_GICV3)
 	foreign_intr_handler	fiq
 #else
@@ -805,12 +798,6 @@ __thread_fiq_handler:
 	/* end thread_fiq_handler */
 
 __thread_irq_handler:
-	// --- 
-	push	{r0-r12, lr}
-	bl 		vPrintIRQ
-	// bl		itr_printID
-	pop		{r0-r12, lr}
-	// ---
 #if defined(CFG_ARM_GICV3)
 	native_intr_handler	irq
 #else

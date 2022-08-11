@@ -96,7 +96,7 @@
 
 	/* Is there a floating point context to restore?  If the restored
 	ulPortTaskHasFPUContext is zero then no. */
-	LDR		R0, ulPortTaskHasFPUContextConst		// Remove floating-point feature
+	LDR		R0, ulPortTaskHasFPUContextConst		/* Remove floating-point feature */
 	POP		{R1}
 	STR		R1, [R0]
 	CMP		R1, #0
@@ -125,8 +125,8 @@
 	being used). */
 	POP		{R0-R12, R14}
 
-	// /* Return to the task code, loading CPSR on the way. */
-	// RFEIA	sp!
+	/* Return to the task code, loading CPSR on the way. */
+	RFEIA	sp!
 
 	.endm
 
@@ -272,9 +272,6 @@ vPortRestoreTaskContext:
 	CPS		#SYS_MODE
 	portRESTORE_CONTEXT
 
-	/* Return to the task code, loading CPSR on the way. */
-	RFEIA	sp!
-
 .align 4
 .type FreeRTOS_FIQ_Handler, %function
 FreeRTOS_FIQ_Handler:
@@ -313,22 +310,6 @@ keep_running:
 	/* POP register which are are push in native_intr_handler */
 	POP		{r0-r3, r8-r12, lr}
 
-/* Switch to system mode. */
-	CPS		#SYS_MODE
-
-	/* Restore first task context */
-	portRESTORE_CONTEXT
-
-	/* Return to the task code, loading CPSR on the way. */
-	MOV		pc, lr
-
-next_save_optee_context:
-	/* Enter this section if the interrupt handler come from native_intr_handler */
-
-	POP		{r0-r4, lr}
-	/* POP register which are are push in native_intr_handler */
-	POP		{r0-r3, r8-r12, lr}
-	
 	/* Push the return address and SPSR. */
 	PUSH	{lr}
 	MRS		lr, SPSR
@@ -363,7 +344,7 @@ next_save_optee_context:
 	ADD		sp, sp, r2
 
 	/* Restore the old nesting count. */
-	STR		r1, [r0]
+	STR		r1, [r3]
 
 	/* A context switch is never performed if the nesting count is not 0. */
 	CMP		r1, #0

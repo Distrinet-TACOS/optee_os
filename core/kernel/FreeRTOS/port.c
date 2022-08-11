@@ -79,7 +79,7 @@
 /* Some vendor specific files default configCLEAR_TICK_INTERRUPT() in
 portmacro.h. */
 #ifndef configCLEAR_TICK_INTERRUPT
-	#define configCLEAR_TICK_INTERRUPT() vClearEpitInterrupt()
+	#define configCLEAR_TICK_INTERRUPT()
 #endif
 
 /* A critical section is exited when the critical section nesting count reaches
@@ -101,7 +101,7 @@ context. */
 #define portINITIAL_SPSR				( ( StackType_t ) 0x1f ) /* System mode, ARM mode, IRQ enabled FIQ enabled. */
 #define portTHUMB_MODE_BIT				( ( StackType_t ) 0x20 )
 #define portIRQ_MASK					( ( StackType_t ) 0x80 )
-#define portINTERRUPT_ENABLE_BIT		( 0x40UL )					// FIQ Interrupt
+#define portINTERRUPT_ENABLE_BIT		( 0x40UL )
 #define portTHUMB_MODE_ADDRESS			( 0x01UL )
 
 /* Used by portASSERT_IF_INTERRUPT_PRIORITY_INVALID() when ensuring the binary
@@ -330,7 +330,7 @@ static void prvTaskExitError( void )
 
 	Artificially force an assert() to be triggered if configASSERT() is
 	defined, then stop here so application writers can catch the error. */
-	// configASSERT( ulPortInterruptNesting == ~0UL );
+	configASSERT( ulPortInterruptNesting == ~0UL );
 	portDISABLE_INTERRUPTS();
 	for( ;; );
 }
@@ -465,7 +465,6 @@ void vPortExitCritical( void )
 
 void FreeRTOS_Tick_Handler( void )
 {
-	IMSG("Increment Tick");
 	/* Set interrupt mask before altering scheduler structures.   The tick
 	handler runs at the lowest priority, so interrupts cannot already be masked,
 	so there is no need to save and restore the current mask value.  It is

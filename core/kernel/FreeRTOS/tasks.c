@@ -2155,7 +2155,7 @@ void vTaskSuspendAll( void )
 
 	/* portSOFRWARE_BARRIER() is only implemented for emulated/simulated ports that
 	 * do not otherwise exhibit real time behaviour. */
-	// portSOFTWARE_BARRIER();
+	portSOFTWARE_BARRIER();
 
 	/* The scheduler is suspended if uxSchedulerSuspended is non-zero.  An increment
 	 * is used to allow calls to vTaskSuspendAll() to nest. */
@@ -2163,7 +2163,7 @@ void vTaskSuspendAll( void )
 
 	/* Enforces ordering for ports and optimised compilers that may otherwise place
 	 * the above increment elsewhere. */
-	// portMEMORY_BARRIER();
+	portMEMORY_BARRIER();
 }
 /*----------------------------------------------------------*/
 
@@ -2801,6 +2801,7 @@ BaseType_t xTaskIncrementTick( void )
 					 * be removed from the Blocked state. */
 					pxTCB = listGET_OWNER_OF_HEAD_ENTRY( pxDelayedTaskList ); /*lint !e9079 void * is used as this macro is used with timers and co-routines too.  Alignment is known to be fine as the type of the pointer stored and retrieved is the same. */
 					xItemValue = listGET_LIST_ITEM_VALUE( &( pxTCB->xStateListItem ) );
+
 					if( xConstTickCount < xItemValue )
 					{
 						/* It is not time to unblock this item yet, but the
@@ -5331,11 +5332,7 @@ static void prvAddCurrentTaskToDelayedList( TickType_t xTicksToWait,
 
 				/* The list item will be inserted in wake time order. */
 				listSET_LIST_ITEM_VALUE( &( pxCurrentTCB->xStateListItem ), xTimeToWake );
-<<<<<<< HEAD
 
-=======
-				
->>>>>>> 649e8721dd97865465ff5cdc104abfc1c7c22db0
 				if( xTimeToWake < xConstTickCount )
 				{
 					/* Wake time has overflowed.  Place this item in the overflow
@@ -5426,7 +5423,6 @@ static void prvAddCurrentTaskToDelayedList( TickType_t xTicksToWait,
 /* Custom function for OPTEE scheduling */
 
 void vInitOPTEEStack(void){
-<<<<<<< HEAD
 	#if ( configSUPPORT_DYNAMIC_ALLOCATION == 1 && configSUPPORT_STATIC_ALLOCATION == 0)
 		pxOpteeStack = pvPortMalloc( ( ( ( size_t ) configMINIMAL_STACK_SIZE ) * sizeof( StackType_t ) ) ); /*lint !e9079 All values returned by pvPortMalloc() have at least the alignment required by the MCU's stack and this allocation is the stack. */
 
@@ -5458,15 +5454,3 @@ void vApplicationStackOverflowHook( TaskHandle_t xTask, char * pcTaskName ){
 	IMSG(" Overflow of %s task at %x !", pcTaskName, xTask);
 
 }
-=======
-	pxOpteeStack = pvPortMalloc( ( ( ( size_t ) configMINIMAL_STACK_SIZE ) * sizeof( StackType_t ) ) ); /*lint !e9079 All values returned by pvPortMalloc() have at least the alignment required by the MCU's stack and this allocation is the stack. */
-
-	if(pxOpteeStack == NULL){
-		IMSG("Cannot create OPTEE stack");
-		assert(NULL);
-	}
-
-	pxOpteeTopOfStack = &( pxOpteeStack[ configMINIMAL_STACK_SIZE - ( uint32_t ) 1 ] );
-	pxOpteeTopOfStack = ( StackType_t * ) ( ( ( portPOINTER_SIZE_TYPE ) pxOpteeTopOfStack ) & ( ~( ( portPOINTER_SIZE_TYPE ) portBYTE_ALIGNMENT_MASK ) ) ); /*lint !e923 !e9033 !e9078 MISRA exception.  Avoiding casts between pointers and integers is not practical.  Size differences accounted for using portPOINTER_SIZE_TYPE type.  Checked by assert(). */
-}
->>>>>>> 649e8721dd97865465ff5cdc104abfc1c7c22db0

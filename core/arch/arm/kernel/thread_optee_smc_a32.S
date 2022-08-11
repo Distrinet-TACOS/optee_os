@@ -38,7 +38,6 @@ FUNC vector_std_smc_entry , : , .identity_map
 UNWIND(	.cantunwind)
 	readjust_pc
 	push	{r4-r7}
-	
 	bl	thread_handle_std_smc
 	add	sp, sp, #(4 * 4)
 	/*
