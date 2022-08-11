@@ -1224,7 +1224,7 @@ struct thread_specific_data *thread_get_tsd(void)
 }
 
 struct thread_ctx_regs * __nostackcheck thread_get_ctx_regs(void)
-{
+{	
 	struct thread_core_local *l = thread_get_core_local();
 
 	assert(l->curr_thread != THREAD_ID_INVALID);

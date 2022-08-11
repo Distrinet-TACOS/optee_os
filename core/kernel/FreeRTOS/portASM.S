@@ -30,31 +30,28 @@
 
 	.set SYS_MODE,	0x1f
 	.set SVC_MODE,	0x13
-	.set IRQ_MODE,	0x12
+	.set FIQ_MODE,	0x11
 
 	/* Hardware registers. */
-	.extern ulICCIAR
-	.extern ulICCEOIR
 	.extern ulICCPMR
 
 	/* Variables and functions. */
 	.extern ulMaxAPIPriorityMask
 	.extern _freertos_vector_table
 	.extern pxCurrentTCB
+	.extern pxOpteeTopOfStack
 	.extern vTaskSwitchContext
 	.extern vApplicationIRQHandler
 	.extern ulPortInterruptNesting
 	.extern ulPortTaskHasFPUContext
 
-	.global FreeRTOS_IRQ_Handler
+	.global FreeRTOS_FIQ_Handler
 	.global FreeRTOS_SWI_Handler
 	.global vPortRestoreTaskContext
-
-
-
+	.global vApplicationIdleHook
+	.global	portRESTORE_OPTEE_CONTEXT
 
 .macro portSAVE_CONTEXT
-
 	/* Save the LR and SPSR onto the system mode stack before switching to
 	system mode to save the remaining system mode registers. */
 	SRSDB	sp!, #SYS_MODE
@@ -68,7 +65,7 @@
 
 	/* Does the task have a floating point context that needs saving?  If
 	ulPortTaskHasFPUContext is 0 then no. */
-	LDR		R2, ulPortTaskHasFPUContextConst
+	LDR		R2, ulPortTaskHasFPUContextConst		// Remove floating-point feature
 	LDR		R3, [R2]
 	CMP		R3, #0
 
@@ -99,7 +96,7 @@
 
 	/* Is there a floating point context to restore?  If the restored
 	ulPortTaskHasFPUContext is zero then no. */
-	LDR		R0, ulPortTaskHasFPUContextConst
+	LDR		R0, ulPortTaskHasFPUContextConst		// Remove floating-point feature
 	POP		{R1}
 	STR		R1, [R0]
 	CMP		R1, #0
@@ -133,8 +130,120 @@
 
 	.endm
 
+; /**********************************************************************/
 
+.macro portRESTORE_FREERTOS_CONTEXT
+	/* Push used registers */
+	PUSH	{r0-r4, lr}
 
+	/* Did the interrupt request a context switch?  r1 holds the address of
+	ulPortYieldRequired and r0 the value of ulPortYieldRequired for future
+	use. */
+	LDR		r0, =ulPortYieldRequired
+	LDR		r1, [r0]
+	CMP		r1, #0
+	BNE		switch_before_exit_from_optee
+
+exit_without_switch_from_optee:
+	/* No context switch.  Restore used registers, LR and SPSR before
+	returning. */
+	POP		{r0-r4, lr}
+	
+	CPS		#SYS_MODE
+	/* Restore first task context */
+	portRESTORE_CONTEXT
+
+switch_before_exit_from_optee:
+	/* A context switch is to be performed.  Clear the context switch pending
+	flag. */
+	MOV		r1, #0
+	STR		r1, [r0]
+
+	/* Restore used registers, LR-irq and SPSR before saving the context
+	to the task stack. */
+	POP		{r0-r4, lr}
+
+	CPS		#SYS_MODE
+	
+	/* Call the function that selects the new task to execute.
+	vTaskSwitchContext() if vTaskSwitchContext() uses LDRD or STRD
+	instructions, or 8 byte aligned stack allocated data.  LR does not need
+	saving as a new LR will be loaded by portRESTORE_CONTEXT anyway. */
+	LDR		r0, vTaskSwitchContextConst
+	BLX		r0
+
+	/* Restore the context of, and branch to, the task selected to execute
+	next. */
+	portRESTORE_CONTEXT
+
+	.endm
+
+; /**********************************************************************/
+
+.macro portSAVE_OPTEE_REG
+	/* Manualy saving OPTEE register */
+	PUSH	{r0-r4, lr}
+
+	/* Load OPTEE stack pointer */
+	LDR		r0, pxOpteeTopOfStackConst
+	LDR		r0, [r0]
+
+	/* Store {r1-r12, lr} into the Stack*/
+	STMDB	r0!, {r1-r12, lr}
+	
+	/* Save the stack pointer */
+	LDR		r1, pxOpteeTopOfStackConst
+	STR		r0, [r1]
+
+	/* Restore r0 */
+	POP		{r0-r4, lr}
+	PUSH	{r0-r4, lr}
+
+	/* Save the current CPSR and r0 */
+	MOV		r1, r0
+	MRS		r0, CPSR
+	LDR		r2, pxOpteeTopOfStackConst
+	LDR		r2, [r2]
+	STMDB	r2!, {r0-r1}
+
+	/* Save the stack pointer */
+	LDR		r3, pxOpteeTopOfStackConst
+	STR		r2, [r3]
+
+	POP		{r0-r4, lr}
+
+	.endm
+
+; /**********************************************************************/
+
+.macro portRESTORE_OPTEE_REG
+	/* Manualy restoring OPTEE register	*/
+	/* Load OPTEE stack pointer */
+	LDR		r2, pxOpteeTopOfStackConst
+	LDR		r2, [r2]
+
+	/* Restore the saved CPSR and r0 */
+	LDMIA	r2!, {r0, r1}
+	MSR		CPSR_cxsf, r0
+	MOV		r0, r1
+
+	/* Save r0 and load the stack pointer into r0 */
+	PUSH	{r0}
+	MOV		r0, r2
+	/* Restore other saved registers */
+	LDMIA	r0!, {r1-r12, lr}
+	
+	/* Save OPTEE stack pointer */
+	PUSH	{r1}
+	LDR		r1, pxOpteeTopOfStackConst
+	STR		r0, [r1]
+
+	POP		{r1}
+	POP		{r0}
+
+	.endm
+
+; /**********************************************************************/
 
 /******************************************************************************
  * SVC handler is used to start the scheduler.
@@ -142,12 +251,17 @@
 .align 4
 .type FreeRTOS_SWI_Handler, %function
 FreeRTOS_SWI_Handler:
+	/* Restore saved register in __thread_svc_handler */
+	POP		{r0}
+	POP		{r0-r7, lr}
+
 	/* Save the context of the current task and select a new task to run. */
 	portSAVE_CONTEXT
-	LDR R0, vTaskSwitchContextConst
-	BLX	R0
-	portRESTORE_CONTEXT
+	
+	LDR 	r0, vTaskSwitchContextConst
+	BLX		r0
 
+	portRESTORE_CONTEXT
 
 /******************************************************************************
  * vPortRestoreTaskContext is used to start the scheduler.
@@ -159,10 +273,46 @@ vPortRestoreTaskContext:
 	portRESTORE_CONTEXT
 
 .align 4
-.type FreeRTOS_IRQ_Handler, %function
-FreeRTOS_IRQ_Handler:
-	/* Return to the interrupted instruction. */
-	SUB		lr, lr, #4
+.type FreeRTOS_FIQ_Handler, %function
+FreeRTOS_FIQ_Handler:
+	/* Save used registers */
+	PUSH	{r0-r4, lr}
+
+	/* Check status of scheduler */
+	LDR		r0, =xSchedulerRunning
+	LDR		r0, [r0]
+	CMP		r0, #1		
+	/* Return if scheduler isn't running */		
+	POPNE	{r0-r4, pc}
+
+	/* If called from OPTEE Secure Monitor, save OPTEE context for futur 
+	   context switching between FreeRTOS and OPTEE */
+	LDR		r0, =uSwitchFromOPTEE
+	LDR		r1, [r0]
+	CMP		r1, #1
+	BNE		keep_running
+	
+save_optee_context:
+	/* Reset uSwitchFromOPTEE */
+	MOV		r2, #0
+	STR		r2, [r0]
+	
+	/* Restore OPTEE registers */
+	POP		{r0-r4, lr}
+
+	portSAVE_OPTEE_REG
+
+	/* SRestoring FreeRTOS context */
+	portRESTORE_FREERTOS_CONTEXT
+
+keep_running:
+	POP		{r0-r4, lr}
+	/* POP register which are are push in native_intr_handler */
+	POP		{r0-r3, r8-r12, lr}
+
+	CPSID	if
+	DSB
+	ISB
 
 	/* Push the return address and SPSR. */
 	PUSH	{lr}
@@ -170,8 +320,8 @@ FreeRTOS_IRQ_Handler:
 	PUSH	{lr}
 
 	/* Change to supervisor mode to allow reentry. */
-	CPS		#SVC_MODE
-
+	// CPS		#SVC_MODE
+	
 	/* Push used registers. */
 	PUSH	{r0-r4, r12}
 
@@ -183,12 +333,6 @@ FreeRTOS_IRQ_Handler:
 	ADD		r4, r1, #1
 	STR		r4, [r3]
 
-	/* Read value from the interrupt acknowledge register, which is stored in r0
-	for future parameter and interrupt clearing use. */
-	LDR 	r2, ulICCIARConst
-	LDR		r2, [r2]
-	LDR		r0, [r2]
-
 	/* Ensure bit 2 of the stack pointer is clear.  r2 holds the bit 2 value for
 	future use.  _RB_ Does this ever actually need to be done provided the start
 	of the stack is 8-byte aligned? */
@@ -197,20 +341,11 @@ FreeRTOS_IRQ_Handler:
 	SUB		sp, sp, r2
 
 	/* Call the interrupt handler.  r4 pushed to maintain alignment. */
-	PUSH	{r0-r4, lr}
-	LDR		r1, vApplicationIRQHandlerConst
-	BLX		r1
+	PUSH	{r0-r4, lr}							// Remove floating-point feature
+	//LDR		r1, vApplicationIRQHandlerConst
+	//BLX		r1
 	POP		{r0-r4, lr}
 	ADD		sp, sp, r2
-
-	CPSID	i
-	DSB
-	ISB
-
-	/* Write the value read from ICCIAR to ICCEOIR. */
-	LDR 	r4, ulICCEOIRConst
-	LDR		r4, [r4]
-	STR		r0, [r4]
 
 	/* Restore the old nesting count. */
 	STR		r1, [r3]
@@ -222,47 +357,84 @@ FreeRTOS_IRQ_Handler:
 	/* Did the interrupt request a context switch?  r1 holds the address of
 	ulPortYieldRequired and r0 the value of ulPortYieldRequired for future
 	use. */
-	LDR		r1, =ulPortYieldRequired
-	LDR		r0, [r1]
-	CMP		r0, #0
+	LDR		r0, =ulPortYieldRequired
+	LDR		r1, [r0]
+	CMP		r1, #0
 	BNE		switch_before_exit
 
 exit_without_switch:
 	/* No context switch.  Restore used registers, LR_irq and SPSR before
 	returning. */
 	POP		{r0-r4, r12}
-	CPS		#IRQ_MODE
-	POP		{LR}
-	MSR		SPSR_cxsf, LR
-	POP		{LR}
-	MOVS	PC, LR
+	// CPS		#FIQ_MODE
+	POP		{lr}
+	MSR		SPSR_cxsf, lr
+	POP		{lr}
+
+	
+	CPSIE	if
+	DSB
+	ISB
+
+	MOVS	pc, lr
 
 switch_before_exit:
-	/* A context swtich is to be performed.  Clear the context switch pending
+	/* A context switch is to be performed.  Clear the context switch pending
 	flag. */
-	MOV		r0, #0
-	STR		r0, [r1]
+	MOV		r1, #0
+	STR		r1, [r0]
 
-	/* Restore used registers, LR-irq and SPSR before saving the context
+	/* Restore used registers, LR-fiq and SPSR before saving the context
 	to the task stack. */
 	POP		{r0-r4, r12}
-	CPS		#IRQ_MODE
-	POP		{LR}
-	MSR		SPSR_cxsf, LR
-	POP		{LR}
+	// CPS		#FIQ_MODE
+	POP		{lr}
+	MSR		SPSR_cxsf, lr
+	POP		{lr}
+	
+	CPSIE	f
+	DSB
+	ISB
+	
 	portSAVE_CONTEXT
 
 	/* Call the function that selects the new task to execute.
 	vTaskSwitchContext() if vTaskSwitchContext() uses LDRD or STRD
 	instructions, or 8 byte aligned stack allocated data.  LR does not need
 	saving as a new LR will be loaded by portRESTORE_CONTEXT anyway. */
-	LDR		R0, vTaskSwitchContextConst
-	BLX		R0
+	LDR		r0, vTaskSwitchContextConst
+	BLX		r0
 
 	/* Restore the context of, and branch to, the task selected to execute
 	next. */
 	portRESTORE_CONTEXT
 
+/******************************************************************************
+ * portRESTORE_OPTEE_CONTEXT is called when we have no ready task left other 
+ * than Idle task, and will leave FreeRTOS et go back to OPTEE code 
+ *****************************************************************************/
+.align 4
+.type portRESTORE_OPTEE_CONTEXT, %function
+portRESTORE_OPTEE_CONTEXT:
+	/* Reset uSwitchFromOPTEE flag to save OPTEE context at the next interrupt */
+	LDR		r0, =uSwitchFromOPTEE
+	LDR		r1, [r0]
+	MOV		r2, #1
+	STR		r2, [r0]
+
+	/* Restore saved register in __thread_svc_handler */
+	POP		{r0}
+	POP		{r0-r7, lr}
+
+	/* Save FreeRTOS context */
+	portSAVE_CONTEXT
+
+	/* Restore processor mode */
+	CPS		#SVC_MODE
+
+	portRESTORE_OPTEE_REG
+
+	MOV		pc, lr
 
 /******************************************************************************
  * If the application provides an implementation of vApplicationIRQHandler(),
@@ -300,24 +472,19 @@ vApplicationIRQHandler:
 	VPOP	{D0-D15}
 	VMSR	FPSCR, R0
 
-	POP {PC}
+	POP 	{PC}
 
 
-ulICCIARConst:	.word ulICCIAR
-ulICCEOIRConst:	.word ulICCEOIR
 ulICCPMRConst: .word ulICCPMR
 pxCurrentTCBConst: .word pxCurrentTCB
+pxOpteeTopOfStackConst: .word pxOpteeTopOfStack
 ulCriticalNestingConst: .word ulCriticalNesting
 ulPortTaskHasFPUContextConst: .word ulPortTaskHasFPUContext
 ulMaxAPIPriorityMaskConst: .word ulMaxAPIPriorityMask
 vTaskSwitchContextConst: .word vTaskSwitchContext
+portRESTORE_OPTEE_CONTEXTConst:	.word portRESTORE_OPTEE_CONTEXT
 vApplicationIRQHandlerConst: .word vApplicationIRQHandler
 ulPortInterruptNestingConst: .word ulPortInterruptNesting
 vApplicationFPUSafeIRQHandlerConst: .word vApplicationFPUSafeIRQHandler
 
 .end
-
-
-
-
-

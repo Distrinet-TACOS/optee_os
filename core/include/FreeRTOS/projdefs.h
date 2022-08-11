@@ -40,8 +40,8 @@ typedef void (* TaskFunction_t)( void * );
     #define pdMS_TO_TICKS( xTimeInMs )    ( ( TickType_t ) ( ( ( TickType_t ) ( xTimeInMs ) * ( TickType_t ) configTICK_RATE_HZ ) / ( TickType_t ) 1000U ) )
 #endif
 
-#define pdFALSE                                  ( ( BaseType_t ) 0 )
-#define pdTRUE                                   ( ( BaseType_t ) 1 )
+#define pdFALSE                                  ( ( uint32_t ) 0 )
+#define pdTRUE                                   ( ( uint32_t ) 1 )
 
 #define pdPASS                                   ( pdTRUE )
 #define pdFAIL                                   ( pdFALSE )

@@ -106,6 +106,18 @@ register_dynamic_shm(CFG_NSEC_DDR_0_BASE, CFG_NSEC_DDR_0_SIZE);
 register_dynamic_shm(CFG_NSEC_DDR_1_BASE, CFG_NSEC_DDR_1_SIZE);
 #endif
 
+void itr_printID(void)
+{
+	uint32_t iar;
+	uint32_t id;
+
+	iar = io_read32(gic_data.gicc_base + 0x00C);
+	id = iar & 0x3FF;
+
+	if(id == 1022)
+		IMSG("ID = %u", id);
+}
+
 void itr_core_handler(void)
 {
 	gic_it_handle(&gic_data);

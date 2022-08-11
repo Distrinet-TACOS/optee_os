@@ -69,7 +69,21 @@ UNWIND(	.cantunwind)
 	readjust_pc
  	/* Secure Monitor received a FIQ and passed control to us. */
 	bl	thread_check_canaries
+	
+	// --- 
+	push	{r0-r12, lr}
+	bl 		vPrintSMFIQ
+	pop		{r0-r12, lr}
+	// ---
+
 	bl	itr_core_handler
+
+	// --- 
+	/* push	{r0-r12, lr}
+	bl 		vPrintSMFIQret
+	pop		{r0-r12, lr} */
+	// ---
+
 	ldr	r0, =TEESMC_OPTEED_RETURN_FIQ_DONE
 	smc	#0
 	b	.	/* SMC should not return */
