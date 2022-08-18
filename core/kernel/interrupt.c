@@ -131,6 +131,11 @@ void itr_set_affinity(size_t it, uint8_t cpu_mask)
 	itr_chip->ops->set_affinity(itr_chip, it, cpu_mask);
 }
 
+void itr_set_priority(size_t it, size_t prio)
+{
+	itr_chip->ops->set_priority(itr_chip, it, prio);
+}
+
 /* This function is supposed to be overridden in platform specific code */
 void __weak __noreturn itr_core_handler(void)
 {

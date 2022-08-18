@@ -26,6 +26,7 @@ struct itr_ops {
 		uint8_t cpu_mask);
 	void (*set_affinity)(struct itr_chip *chip, size_t it,
 		uint8_t cpu_mask);
+	void (*set_priority)(struct itr_chip *chip, size_t it, size_t prio);
 };
 
 enum itr_return {
@@ -79,6 +80,11 @@ void itr_raise_sgi(size_t it, uint8_t cpu_mask);
  * according to the cpu_mask.
  */
 void itr_set_affinity(size_t it, uint8_t cpu_mask);
+/*
+ * set the priority level of the corresponding interrupt to one of the available
+ * levels. Panics if the level is larger than te max priority level.
+ */
+void itr_set_priority(size_t it, size_t prio);
 
 /*
  * __weak overridable function which is called when a secure interrupt is
