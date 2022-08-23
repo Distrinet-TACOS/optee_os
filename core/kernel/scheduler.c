@@ -100,12 +100,24 @@ static void test2_task(void *pvParameters){
 	/* Stop warnings. */
 	( void ) pvParameters;
 
+	uint32_t delay = 2;
+
 	while(1){
 
 		if(io_read32(&print2) == 1){
 			io_write32(&print2, 0);
 			io_write32(&print1 ,1);
 			IMSG("----- TEST TASK 2");
+
+			if(delay == 0){
+				IMSG("Enable IRQ IT");
+				asm volatile ( "CPSIE if" ::: "memory" );
+				asm volatile ( "DSB" );
+				asm volatile ( "ISB" );
+			}
+			else{
+				delay--;
+			}
 		}
 	}
 }
@@ -164,12 +176,12 @@ void test3_task(void *pvParameters){
 				while(1);
 			}
 
-			test3_handler = xTaskCreateStatic(test3_task, "TASK3", configMINIMAL_STACK_SIZE, ( void * ) NULL, ( UBaseType_t ) 2, xStack3, &xTask3TCB);
+			// test3_handler = xTaskCreateStatic(test3_task, "TASK3", configMINIMAL_STACK_SIZE, ( void * ) NULL, ( UBaseType_t ) 2, xStack3, &xTask3TCB);
 
-			if(test3_handler == NULL){
-				IMSG("Cannot create task3");
-				while(1);
-			}
+			// if(test3_handler == NULL){
+			// 	IMSG("Cannot create task3");
+			// 	while(1);
+			// }
 		}
 	}
 #endif
