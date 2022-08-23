@@ -6,7 +6,7 @@
 #define configUSE_PORT_OPTIMISED_TASK_SELECTION 0
 #define configUSE_TICKLESS_IDLE                 0
 #define configMAX_PRIORITIES                    5
-#define configMINIMAL_STACK_SIZE                256
+#define configMINIMAL_STACK_SIZE                192
 #define configMAX_TASK_NAME_LEN                 16
 #define configUSE_16_BIT_TICKS                  0
 #define configIDLE_SHOULD_YIELD                 1
@@ -15,7 +15,6 @@
 #define configUSE_MUTEXES                       0
 #define configUSE_RECURSIVE_MUTEXES             0
 #define configUSE_COUNTING_SEMAPHORES           0
-#define configUSE_ALTERNATIVE_API               0 /* Deprecated! */
 #define configQUEUE_REGISTRY_SIZE               10
 #define configUSE_QUEUE_SETS                    0
 #define configUSE_NEWLIB_REENTRANT              0
@@ -106,6 +105,6 @@
 #include <assert.h>
 #include <kernel/scheduler.h>
 
-#define configTICK_RATE_HZ                      1000/EPIT1_PERIODE_MS
+#define configTICK_RATE_HZ                      4000/EPIT1_PERIODE_MS
 
 #endif /* FREERTOS_CONFIG_H */

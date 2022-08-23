@@ -64,7 +64,7 @@ static void prvHeapInit( void );
 * heap - probably so it can be placed in a special segment or address. */
     extern uint8_t ucHeap[ configTOTAL_HEAP_SIZE ];
 #else
-    static uint8_t ucHeap[ configTOTAL_HEAP_SIZE ];
+    static uint32_t ucHeap[ configTOTAL_HEAP_SIZE ];
 #endif /* configAPPLICATION_ALLOCATED_HEAP */
 
 
@@ -115,7 +115,7 @@ static size_t xFreeBytesRemaining = configADJUSTED_HEAP_SIZE;
     }
 /*-----------------------------------------------------------*/
 
-void * pvPortMalloc( size_t xWantedSize )
+void * pvPortMalloc( uint32_t xWantedSize )
 {
     BlockLink_t * pxBlock, * pxPreviousBlock, * pxNewBlockLink;
     static BaseType_t xHeapHasBeenInitialised = pdFALSE;
@@ -174,7 +174,7 @@ void * pvPortMalloc( size_t xWantedSize )
             {
                 /* Return the memory space - jumping over the BlockLink_t structure
                  * at its start. */
-                pvReturn = ( void * ) ( ( ( uint8_t * ) pxPreviousBlock->pxNextFreeBlock ) + heapSTRUCT_SIZE );
+                pvReturn = ( void * ) ( ( ( uint32_t * ) pxPreviousBlock->pxNextFreeBlock ) + heapSTRUCT_SIZE );
 
                 /* This block is being returned for use so must be taken out of the
                  * list of free blocks. */
@@ -186,7 +186,7 @@ void * pvPortMalloc( size_t xWantedSize )
                     /* This block is to be split into two.  Create a new block
                      * following the number of bytes requested. The void cast is
                      * used to prevent byte alignment warnings from the compiler. */
-                    pxNewBlockLink = ( void * ) ( ( ( uint8_t * ) pxBlock ) + xWantedSize );
+                    pxNewBlockLink = ( void * ) ( ( ( uint32_t * ) pxBlock ) + xWantedSize );
 
                     /* Calculate the sizes of two blocks split from the single
                      * block. */
@@ -221,7 +221,7 @@ void * pvPortMalloc( size_t xWantedSize )
 
 void vPortFree( void * pv )
 {
-    uint8_t * puc = ( uint8_t * ) pv;
+    uint32_t * puc = ( uint32_t * ) pv;
     BlockLink_t * pxLink;
 
     if( pv != NULL )
@@ -261,10 +261,10 @@ void vPortInitialiseBlocks( void )
 static void prvHeapInit( void )
 {
     BlockLink_t * pxFirstFreeBlock;
-    uint8_t * pucAlignedHeap;
+    uint32_t * pucAlignedHeap;
 
     /* Ensure the heap starts on a correctly aligned boundary. */
-    pucAlignedHeap = ( uint8_t * ) ( ( ( portPOINTER_SIZE_TYPE ) & ucHeap[ portBYTE_ALIGNMENT ] ) & ( ~( ( portPOINTER_SIZE_TYPE ) portBYTE_ALIGNMENT_MASK ) ) );
+    pucAlignedHeap = ( uint32_t * ) ( ( ( portPOINTER_SIZE_TYPE ) & ucHeap[ portBYTE_ALIGNMENT ] ) & ( ~( ( portPOINTER_SIZE_TYPE ) portBYTE_ALIGNMENT_MASK ) ) );
 
     /* xStart is used to hold a pointer to the first item in the list of free
      * blocks.  The void cast is used to prevent compiler warnings. */

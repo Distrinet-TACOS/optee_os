@@ -40,6 +40,7 @@
 	.extern _freertos_vector_table
 	.extern pxCurrentTCB
 	.extern pxOpteeTopOfStack
+	.extern pxOpteeBottomOfStack
 	.extern vTaskSwitchContext
 	.extern vApplicationIRQHandler
 	.extern ulPortInterruptNesting
@@ -181,65 +182,46 @@ switch_before_exit_from_optee:
 ; /**********************************************************************/
 
 .macro portSAVE_OPTEE_REG
-	/* Manualy saving OPTEE register */
-	PUSH	{r0-r4, lr}
 
-	/* Load OPTEE stack pointer */
-	LDR		r0, pxOpteeTopOfStackConst
-	LDR		r0, [r0]
+	/* Set sp of OPTEE Stack */
+	CPS 	#SYS_MODE
+	LDR		sp, pxOpteeTopOfStackConst
+	LDR		sp, [sp]
+	CPS		#SVC_MODE
 
-	/* Store {r1-r12, lr} into the Stack*/
-	STMDB	r0!, {r1-r12, lr}
+	/* Store lr and SPSR, we will overwrite the SPSR by the CPSR just after*/
+	SRSDB	sp, #SYS_MODE
+	CPS 	#SYS_MODE
 	
-	/* Save the stack pointer */
-	LDR		r1, pxOpteeTopOfStackConst
-	STR		r0, [r1]
+	/* Save the right CPSR, because we change */
+	MRS		lr, CPSR
+	BIC		lr, lr, #0x1f
+	ORR		lr, lr,	#SVC_MODE 
+	PUSH	{lr}
+	SUB		sp, sp, #4
 
-	/* Restore r0 */
-	POP		{r0-r4, lr}
-	PUSH	{r0-r4, lr}
+	/* Save registers */
+	PUSH	{r0-r12, lr}
 
-	/* Save the current CPSR and r0 */
-	MOV		r1, r0
-	MRS		r0, CPSR
-	LDR		r2, pxOpteeTopOfStackConst
-	LDR		r2, [r2]
-	STMDB	r2!, {r0-r1}
-
-	/* Save the stack pointer */
-	LDR		r3, pxOpteeTopOfStackConst
-	STR		r2, [r3]
-
-	POP		{r0-r4, lr}
+	/* Save the sp */
+	LDR		r0, pxOpteeBottomOfStackConst
+	STR		sp, [r0]
 
 	.endm
 
 ; /**********************************************************************/
 
 .macro portRESTORE_OPTEE_REG
-	/* Manualy restoring OPTEE register	*/
-	/* Load OPTEE stack pointer */
-	LDR		r2, pxOpteeTopOfStackConst
-	LDR		r2, [r2]
 
-	/* Restore the saved CPSR and r0 */
-	LDMIA	r2!, {r0, r1}
-	MSR		CPSR_cxsf, r0
-	MOV		r0, r1
-
-	/* Save r0 and load the stack pointer into r0 */
-	PUSH	{r0}
-	MOV		r0, r2
-	/* Restore other saved registers */
-	LDMIA	r0!, {r1-r12, lr}
+	/* Set sp of OPTEE Stack */
+	LDR		sp, pxOpteeBottomOfStackConst
+	LDR		sp, [sp]
 	
-	/* Save OPTEE stack pointer */
-	PUSH	{r1}
-	LDR		r1, pxOpteeTopOfStackConst
-	STR		r0, [r1]
+	/* Restore registers */
+	POP		{r0-r12, lr}
 
-	POP		{r1}
-	POP		{r0}
+	/* Return to the task code, loading CPSR on the way. */
+	RFEIA 	sp
 
 	.endm
 
@@ -306,6 +288,7 @@ save_optee_context:
 	portRESTORE_FREERTOS_CONTEXT
 
 keep_running:
+
 	POP		{r0-r4, lr}
 	/* POP register which are are push in native_intr_handler */
 	POP		{r0-r3, r8-r12, lr}
@@ -316,8 +299,10 @@ keep_running:
 	PUSH	{lr}
 
 	/* Change to supervisor mode to allow reentry. */
-	// CPS		#SVC_MODE
-	
+	CPS		#SVC_MODE
+
+	/* FIQ and SVC share the same stack so we need do adjust the sp */
+	SUB		sp, sp, #8
 	/* Push used registers. */
 	PUSH	{r0-r4, r12}
 
@@ -337,9 +322,9 @@ keep_running:
 	SUB		sp, sp, r2
 
 	/* Call the interrupt handler.  r4 pushed to maintain alignment. */
-	PUSH	{r0-r4, lr}							// Remove floating-point feature
-	//LDR		r1, vApplicationIRQHandlerConst
-	//BLX		r1
+	PUSH	{r0-r4, lr}
+	LDR		r1, vApplicationIRQHandlerConst
+	BLX		r1
 	POP		{r0-r4, lr}
 	ADD		sp, sp, r2
 
@@ -362,7 +347,7 @@ exit_without_switch:
 	/* No context switch.  Restore used registers, LR_irq and SPSR before
 	returning. */
 	POP		{r0-r4, r12}
-	// CPS		#FIQ_MODE
+	CPS		#FIQ_MODE
 	POP		{lr}
 	MSR		SPSR_cxsf, lr
 	POP		{lr}
@@ -378,11 +363,11 @@ switch_before_exit:
 	/* Restore used registers, LR-fiq and SPSR before saving the context
 	to the task stack. */
 	POP		{r0-r4, r12}
-	// CPS		#FIQ_MODE
+	CPS		#FIQ_MODE
 	POP		{lr}
 	MSR		SPSR_cxsf, lr
 	POP		{lr}
-	
+
 	portSAVE_CONTEXT
 
 	/* Call the function that selects the new task to execute.
@@ -417,11 +402,9 @@ portRESTORE_OPTEE_CONTEXT:
 	portSAVE_CONTEXT
 
 	/* Restore processor mode */
-	CPS		#SVC_MODE
+	CPS		#SYS_MODE
 
 	portRESTORE_OPTEE_REG
-
-	MOV		pc, lr
 
 /******************************************************************************
  * If the application provides an implementation of vApplicationIRQHandler(),
@@ -446,25 +429,27 @@ portRESTORE_OPTEE_CONTEXT:
 .type vApplicationIRQHandler, %function
 vApplicationIRQHandler:
 	PUSH	{LR}
-	FMRX	R1,  FPSCR
+	/* Floating-point feature not present in imx6 */
+	/* FMRX	R1,  FPSCR
 	VPUSH	{D0-D15}
-	VPUSH	{D16-D31}
-	PUSH	{R1}
+	VPUSH	{D16-D31} */
+	// PUSH	{R1}
+	
+	/* Floating-point feature not present in imx6 */
+	/* LDR		r1, vApplicationFPUSafeIRQHandlerConst
+	BLX		r1 */
 
-	LDR		r1, vApplicationFPUSafeIRQHandlerConst
-	BLX		r1
-
-	POP		{R0}
-	VPOP	{D16-D31}
+	// POP		{R0}
+	/* VPOP	{D16-D31}
 	VPOP	{D0-D15}
-	VMSR	FPSCR, R0
+	VMSR	FPSCR, R0 */
 
 	POP 	{PC}
-
 
 ulICCPMRConst: .word ulICCPMR
 pxCurrentTCBConst: .word pxCurrentTCB
 pxOpteeTopOfStackConst: .word pxOpteeTopOfStack
+pxOpteeBottomOfStackConst: .word pxOpteeBottomOfStack
 ulCriticalNestingConst: .word ulCriticalNesting
 ulPortTaskHasFPUContextConst: .word ulPortTaskHasFPUContext
 ulMaxAPIPriorityMaskConst: .word ulMaxAPIPriorityMask

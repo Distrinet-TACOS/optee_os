@@ -351,6 +351,7 @@ PRIVILEGED_DATA TCB_t * volatile pxCurrentTCB = NULL;
 
 /* Variable used for context switch between OPTEE and FreeRTOS */
 volatile StackType_t * pxOpteeTopOfStack = NULL;
+volatile StackType_t * pxOpteeBottomOfStack = NULL;
 volatile uint32_t uSwitchFromOPTEE = pdTRUE;
 
 extern volatile uint32_t ulPortYieldRequired;
@@ -5436,20 +5437,21 @@ void vInitOPTEEStack(void){
 	pxOpteeTopOfStack = ( StackType_t * ) ( ( ( portPOINTER_SIZE_TYPE ) pxOpteeTopOfStack ) & ( ~( ( portPOINTER_SIZE_TYPE ) portBYTE_ALIGNMENT_MASK ) ) ); /*lint !e923 !e9033 !e9078 MISRA exception.  Avoiding casts between pointers and integers is not practical.  Size differences accounted for using portPOINTER_SIZE_TYPE type.  Checked by assert(). */
 }
 
-void vApplicationGetIdleTaskMemory( StaticTask_t **ppxIdleTaskTCBBuffer, StackType_t **ppxIdleTaskStackBuffer, uint32_t *pulIdleTaskStackSize ){
-    /* Pass out a pointer to the StaticTask_t structure in which the Idle task's
-    state will be stored. */
-    *ppxIdleTaskTCBBuffer = &xTaskIdleTCB;
+#if ( configSUPPORT_STATIC_ALLOCATION == 1 )
+	void vApplicationGetIdleTaskMemory( StaticTask_t **ppxIdleTaskTCBBuffer, StackType_t **ppxIdleTaskStackBuffer, uint32_t *pulIdleTaskStackSize ){
+		/* Pass out a pointer to the StaticTask_t structure in which the Idle task's
+		state will be stored. */
+		*ppxIdleTaskTCBBuffer = &xTaskIdleTCB;
 
-    /* Pass out the array that will be used as the Idle task's stack. */
-    *ppxIdleTaskStackBuffer = xStackIdle;
+		/* Pass out the array that will be used as the Idle task's stack. */
+		*ppxIdleTaskStackBuffer = xStackIdle;
 
-    /* Pass out the size of the array pointed to by *ppxIdleTaskStackBuffer.
-    Note that, as the array is necessarily of type StackType_t,
-    configMINIMAL_STACK_SIZE is specified in words, not bytes. */
-    *pulIdleTaskStackSize = configMINIMAL_STACK_SIZE;
-}
-
+		/* Pass out the size of the array pointed to by *ppxIdleTaskStackBuffer.
+		Note that, as the array is necessarily of type StackType_t,
+		configMINIMAL_STACK_SIZE is specified in words, not bytes. */
+		*pulIdleTaskStackSize = configMINIMAL_STACK_SIZE;
+	}
+#endif
 void vApplicationStackOverflowHook( TaskHandle_t xTask, char * pcTaskName ){
 	IMSG(" Overflow of %s task at %x !", pcTaskName, xTask);
 

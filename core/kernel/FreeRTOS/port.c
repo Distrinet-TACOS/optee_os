@@ -118,25 +118,25 @@ mode. */
 /* The critical section macros only mask interrupts up to an application
 determined priority level.  Sometimes it is necessary to turn interrupt off in
 the CPU itself before modifying certain hardware registers. */
-#define portCPU_FIQ_DISABLE()	/*									\
+#define portCPU_FIQ_DISABLE()										\
 	__asm volatile ( "CPSID f" ::: "memory" );						\
 	__asm volatile ( "DSB" );										\
-	__asm volatile ( "ISB" );	*/
+	__asm volatile ( "ISB" );	
 
-#define portCPU_FIQ_ENABLE()	/*									\
+#define portCPU_FIQ_ENABLE()										\
 	__asm volatile ( "CPSIE f" ::: "memory" );						\
 	__asm volatile ( "DSB" );										\
-	__asm volatile ( "ISB" );	*/
+	__asm volatile ( "ISB" );
 
 
 /* Macro to unmask all interrupt priorities. */
 #define portCLEAR_INTERRUPT_MASK()										\
 {																		\
-	portCPU_FIQ_DISABLE();												\
+	/* portCPU_FIQ_DISABLE(); */										\
 	io_write8(portICCPMR_PRIORITY_MASK_REGISTER_VA, portUNMASK_VALUE);	\
 	__asm volatile (	"DSB		\n"									\
 						"ISB		\n" );								\
-	portCPU_FIQ_ENABLE();												\
+	/* portCPU_FIQ_ENABLE(); */											\ 
 }
 
 #define portINTERRUPT_PRIORITY_REGISTER_OFFSET		0x400UL
@@ -392,7 +392,8 @@ BaseType_t xPortStartScheduler( void )
 			not execute	while the scheduler is being started.  Interrupts are
 			automatically turned back on in the CPU when the first task starts
 			executing. */
-			portCPU_FIQ_DISABLE();
+			/* Already disable */
+			// portCPU_FIQ_DISABLE();
 			
 			/* Start the timer that generates the tick ISR. */
 			configSETUP_TICK_INTERRUPT();
@@ -470,11 +471,12 @@ void FreeRTOS_Tick_Handler( void )
 	so there is no need to save and restore the current mask value.  It is
 	necessary to turn off interrupts in the CPU itself while the ICCPMR is being
 	updated. */
-	portCPU_FIQ_DISABLE();
+	/* Already disable */
+	// portCPU_FIQ_DISABLE();
 	io_write8( (vaddr_t) portICCPMR_PRIORITY_MASK_REGISTER_VA, ulMaxAPIPriorityMask );
 	__asm volatile (	"dsb		\n"
 						"isb		\n" ::: "memory" );
-	portCPU_FIQ_ENABLE();
+	// portCPU_FIQ_ENABLE();
 	
 	/* Increment the RTOS tick. */
 	if( xTaskIncrementTick() != pdFALSE )
@@ -501,7 +503,8 @@ void FreeRTOS_Tick_Handler( void )
 
 		/* Initialise the floating point status register. */
 		// __asm volatile ( "FMXR 	FPSCR, %0" :: "r" (ulInitialFPSCR) : "memory" );
-		IMSG("Floating Point Unit isn't implemented yet");
+		IMSG("Floating Point Unit isn't implemented in imx6 dual/quad");
+		configASSERT(NULL);
 	}
 
 #endif /* configUSE_TASK_FPU_SUPPORT */
@@ -523,7 +526,8 @@ uint32_t ulReturn;
 
 	/* Interrupt in the CPU must be turned off while the ICCPMR is being
 	updated. */
-	portCPU_FIQ_DISABLE();
+	/* Already disable */
+	// portCPU_FIQ_DISABLE();
 
 	if( io_read8( (vaddr_t) portICCPMR_PRIORITY_MASK_REGISTER_VA) == ulMaxAPIPriorityMask )
 	{
@@ -537,8 +541,7 @@ uint32_t ulReturn;
 		__asm volatile (	"dsb		\n"
 							"isb		\n" ::: "memory" );
 	}
-
-	portCPU_FIQ_ENABLE();
+	// portCPU_FIQ_ENABLE();
 
 	return ulReturn;
 }

@@ -20,12 +20,31 @@
 #include <FreeRTOS/task.h>
 #include <FreeRTOS/timers.h>
 
+uint32_t print1 = 1;
+uint32_t print2 = 1;
+
+TaskHandle_t test1_handler, test2_handler, test3_handler;
+
+void raise88(void){
+	IMSG("Raise");
+	for(uint32_t i=0; i<10000; i++);
+	itr_raise_pi(88);
+}
+
 void vPrintSMFIQ(){
 	IMSG(" - Go to SW"); 
 }
 
 void vPrintSMFIQret(){
 	IMSG(" -! Return to NW");
+}
+
+void currentMode(){
+	uint32_t cpsr;
+
+	asm volatile ("mrs	%[cpsr], cpsr" : [cpsr] "=r" (cpsr) );
+
+	IMSG(" - Current mode : %x", cpsr);
 }
 
 void vPrintFIQ(){
@@ -41,17 +60,27 @@ void vPrintIRQ(){
 
 	asm volatile ("mrs	%[cpsr], cpsr" : [cpsr] "=r" (cpsr) );
 
-	IMSG(" -! OPTEE Handler IRQ: %x", cpsr);
+	uint32_t iar;
+	uint32_t id;
+
+	uint32_t addr = phys_to_virt_io(configINTERRUPT_CONTROLLER_BASE_ADDRESS + configINTERRUPT_CONTROLLER_CPU_INTERFACE_OFFSET, 0x1);
+	iar = io_read32(addr + 0x00C);;
+	id = iar & 0x3ff;
+
+	IMSG(" -! OPTEE Handler IRQ: %x, ID = %u", cpsr, id);
 }
 
-uint32_t print1 = 0;
-uint32_t print2 = 1;
+void vAssertInASM7(){
+	IMSG("ASM7");
+}
 
-TaskHandle_t test1_handler, test2_handler, test3_handler;
-StaticTask_t xTask1TCB, xTask2TCB, xTask3TCB;
-StackType_t xStack1[ configMINIMAL_STACK_SIZE ];
-StackType_t xStack2[ configMINIMAL_STACK_SIZE ];
-StackType_t xStack3[ configMINIMAL_STACK_SIZE ];
+void vAssertInASM8(){
+	IMSG("ASM8");
+}
+
+void vAssertInASMr0(uint32_t x){
+	IMSG("Check r0 : %x", x);
+}
 
 static void test1_task(void *pvParameters){
 	/* Stop warnings. */
@@ -64,7 +93,6 @@ static void test1_task(void *pvParameters){
 			io_write32(&print2, 1);
 			IMSG("TEST TASK 1 -----");
 		}
-		//vTaskDelay(2);
 	}
 }
 
@@ -79,11 +107,11 @@ static void test2_task(void *pvParameters){
 			io_write32(&print1 ,1);
 			IMSG("----- TEST TASK 2");
 		}
-		//vTaskDelay(3);
 	}
 }
 
-static void test3_task(void *pvParameters){
+void test3_task(void *pvParameters){
+
 	/* Stop warnings. */
 	( void ) pvParameters;
 	uint32_t flag = 0;
@@ -110,49 +138,84 @@ static void test3_task(void *pvParameters){
 	}
 }
 
-void vCreateTestsTasks(void){
 
-	test1_handler = xTaskCreateStatic(test1_task, "TEST1", configMINIMAL_STACK_SIZE, ( void * ) NULL, ( UBaseType_t ) 1, xStack1, &xTask1TCB);
+#if ( configSUPPORT_STATIC_ALLOCATION == 1 )
 
-	if(test1_handler == NULL){
-		IMSG("Cannot create task1");
-		while(1);
+	StaticTask_t xTask1TCB, xTask2TCB, xTask3TCB;
+	StackType_t xStack1[ configMINIMAL_STACK_SIZE ];
+	StackType_t xStack2[ configMINIMAL_STACK_SIZE ];
+	StackType_t xStack3[ configMINIMAL_STACK_SIZE ];
+
+	void vCreateTestsTasks(void){
+
+		if( configSUPPORT_STATIC_ALLOCATION == 1 ){
+
+			test1_handler = xTaskCreateStatic(test1_task, "TASK1", configMINIMAL_STACK_SIZE, ( void * ) NULL, ( UBaseType_t ) 1, xStack1, &xTask1TCB);
+
+			if(test1_handler == NULL){
+				IMSG("Cannot create task1");
+				while(1);
+			}
+
+			test2_handler = xTaskCreateStatic(test2_task, "TASK2", configMINIMAL_STACK_SIZE, ( void * ) NULL, ( UBaseType_t ) 1, xStack2, &xTask2TCB);
+
+			if(test2_handler == NULL){
+				IMSG("Cannot create task2");
+				while(1);
+			}
+
+			test3_handler = xTaskCreateStatic(test3_task, "TASK3", configMINIMAL_STACK_SIZE, ( void * ) NULL, ( UBaseType_t ) 2, xStack3, &xTask3TCB);
+
+			if(test3_handler == NULL){
+				IMSG("Cannot create task3");
+				while(1);
+			}
+		}
 	}
+#endif
 
-	test2_handler = xTaskCreateStatic(test2_task, "TEST2", configMINIMAL_STACK_SIZE, ( void * ) NULL, ( UBaseType_t ) 1, xStack2, &xTask2TCB);
+#if (configSUPPORT_DYNAMIC_ALLOCATION == 1 && configSUPPORT_STATIC_ALLOCATION == 0)
+	void vCreateTestsTasks(void){
+		BaseType_t xReturn = pdFAIL;
 
-	if(test2_handler == NULL){
-		IMSG("Cannot create task2");
-		while(1);
+		xReturn = xTaskCreate( test1_task, "TASK1", configMINIMAL_STACK_SIZE, ( void * ) NULL, ( UBaseType_t ) 1, &test1_handler );      		
+
+		if(xReturn != pdPASS){
+			IMSG("Couldn't create test1_tasks");
+			while(1);
+		}	
+		
+		xReturn = xTaskCreate( test2_task, "TASK2", configMINIMAL_STACK_SIZE, ( void * ) NULL, ( UBaseType_t ) 1, &test2_handler );      		
+
+		if(xReturn != pdPASS){
+			IMSG("Couldn't create test2_tasks");
+			while(1);
+		}
+
+		xReturn = xTaskCreate( test3_task, "TASK3", configMINIMAL_STACK_SIZE, ( void * ) NULL, ( UBaseType_t ) 2, &test2_handler );      		
+
+		if(xReturn != pdPASS){
+			IMSG("Couldn't create test2_tasks");
+			while(1);
+		}
 	}
-
-	test3_handler = xTaskCreateStatic(test3_task, "TEST3", configMINIMAL_STACK_SIZE, ( void * ) NULL, ( UBaseType_t ) 2, xStack3, &xTask3TCB);
-
-	if(test3_handler == NULL){
-		IMSG("Cannot create task3");
-		while(1);
-	}
-
-	// BaseType_t xReturn = pdFAIL;
-
-	// xReturn = xTaskCreate( test1_tasks, "TEST1", configMINIMAL_STACK_SIZE, ( void * ) NULL, ( UBaseType_t ) 1, &test1_handler );      		
-
-	// if(xReturn != pdPASS){
-	// 	IMSG("Couldn't create test1_tasks");
-	// 	while(1);
-	// }	
-	
-	// xReturn = xTaskCreate( test2_tasks, "TEST2", configMINIMAL_STACK_SIZE, ( void * ) NULL, ( UBaseType_t ) 1, &test2_handler );      		
-
-	// if(xReturn != pdPASS){
-	// 	IMSG("Couldn't create test2_tasks");
-	// 	while(1);
-	// }
-}
+#endif
 
 static enum itr_return Epit_Interrupt_Handler(void){
 	
-	FreeRTOS_Tick_Handler();
+	static uint32_t delay = 20000/EPIT1_PERIODE_MS;
+
+	if (delay == 1) {
+		vTaskStartScheduler();
+	}
+
+	if (delay == 0) {
+		FreeRTOS_Tick_Handler();
+	}
+	else{
+		delay--;
+	}
+
 	/*	Clearing interrupt	*/
 	io_write32(EPIT1_BASE_VA + EPITSR, 0x1);
 
@@ -189,7 +252,7 @@ static TEE_Result scheduler_init(void){
 	itr_enable(schedule_itr.it);
 
 	vCreateTestsTasks();
-	vTaskStartScheduler();
+	//vTaskStartScheduler();
 
 	return TEE_SUCCESS;
 }

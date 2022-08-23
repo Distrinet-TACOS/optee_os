@@ -58,7 +58,7 @@
 * heap - probably so it can be placed in a special segment or address. */
     extern uint8_t ucHeap[ configTOTAL_HEAP_SIZE ];
 #else
-    static uint8_t ucHeap[ configTOTAL_HEAP_SIZE ];
+    static uint32_t ucHeap[ configTOTAL_HEAP_SIZE ];
 #endif /* configAPPLICATION_ALLOCATED_HEAP */
 
 /* Index into the ucHeap array. */
@@ -69,7 +69,7 @@ static size_t xNextFreeByte = ( size_t ) 0;
 void * pvPortMalloc( size_t xWantedSize )
 {
     void * pvReturn = NULL;
-    static uint8_t * pucAlignedHeap = NULL;
+    static uint32_t * pucAlignedHeap = NULL;
 
     /* Ensure that blocks are always aligned. */
     #if ( portBYTE_ALIGNMENT != 1 )
@@ -94,7 +94,7 @@ void * pvPortMalloc( size_t xWantedSize )
         if( pucAlignedHeap == NULL )
         {
             /* Ensure the heap starts on a correctly aligned boundary. */
-            pucAlignedHeap = ( uint8_t * ) ( ( ( portPOINTER_SIZE_TYPE ) & ucHeap[ portBYTE_ALIGNMENT ] ) & ( ~( ( portPOINTER_SIZE_TYPE ) portBYTE_ALIGNMENT_MASK ) ) );
+            pucAlignedHeap = ( uint32_t * ) ( ( ( portPOINTER_SIZE_TYPE ) & ucHeap[ portBYTE_ALIGNMENT ] ) & ( ~( ( portPOINTER_SIZE_TYPE ) portBYTE_ALIGNMENT_MASK ) ) );
         }
 
         /* Check there is enough room left for the allocation and. */

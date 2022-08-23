@@ -70,7 +70,7 @@
 #define GICC_IAR_CPU_ID_MASK	0x7
 #define GICC_IAR_CPU_ID_SHIFT	10
 
-/*	FreeRTOS IRQ Handler	*/
+/* FreeRTOS IRQ Handler */
 extern void FreeRTOS_FIQ_Handler( void );
 
 static void gic_op_add(struct itr_chip *chip, size_t it, uint32_t flags);

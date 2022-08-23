@@ -206,36 +206,5 @@ UBaseType_t uxListRemove( ListItem_t * const pxItemToRemove )
     ( pxList->uxNumberOfItems )--;
 
     return pxList->uxNumberOfItems;
-
-    // /* The list item knows which list it is in.  Obtain the list from the list
-    // * item. */
-    // // List -> pxItemToRemove->pxContainer;
-
-    // io_write32(( (uint32_t) pxItemToRemove->pxNext->pxPrevious ), ( (uint32_t) pxItemToRemove->pxPrevious ) );
-    // io_write32(( (uint32_t) pxItemToRemove->pxPrevious->pxNext ), ( (uint32_t) pxItemToRemove->pxNext ) );
-
-    // /* Only used during decision coverage testing. */
-    // mtCOVERAGE_TEST_DELAY();
-
-    // /* Make sure the index is left pointing to a valid item. */
-    // if( io_read32( (uint32_t) pxItemToRemove->pxContainer->pxIndex ) == ( (uint32_t) pxItemToRemove ) )
-    // {
-    //     io_write32(( (uint32_t) pxItemToRemove->pxContainer->pxIndex ), ( (uint32_t) pxItemToRemove->pxPrevious ) );
-
-    // }
-    // else
-    // {
-    //     mtCOVERAGE_TEST_MARKER();
-    // }
-
-    // uint32_t NumberOfItems = io_read32( (uint32_t) &(pxItemToRemove->pxContainer->uxNumberOfItems) );
-    // NumberOfItems--;
-
-    // io_write32(( (uint32_t) &(pxItemToRemove->pxContainer->uxNumberOfItems) ), NumberOfItems );
-    // NumberOfItems = io_read32( (uint32_t) &(pxItemToRemove->pxContainer->uxNumberOfItems) );
-    
-    // io_write32(( (uint32_t) pxItemToRemove->pxContainer ), ( 0 ) );
-    
-    // return NumberOfItems;
 }
 /*-----------------------------------------------------------*/
