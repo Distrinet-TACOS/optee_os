@@ -170,7 +170,7 @@ extern void vPortRestoreTaskContext( void );
 static void prvTaskExitError( void );
 
 /*
- * If the application provides an implementation of vApplicationIRQHandler(),
+ * If the application provides an implementation of vApplicationFIQHandler(),
  * then it will get called directly without saving the FPU registers on
  * interrupt entry, and this weak implementation of
  * vApplicationFPUSafeIRQHandler() is just provided to remove linkage errors -
@@ -179,14 +179,14 @@ static void prvTaskExitError( void );
  *
  * If the application provides its own implementation of
  * vApplicationFPUSafeIRQHandler() then the implementation of
- * vApplicationIRQHandler() provided in portASM.S will save the FPU registers
+ * vApplicationFIQHandler() provided in portASM.S will save the FPU registers
  * before calling it.
  *
  * Therefore, if the application writer wants FPU registers to be saved on
  * interrupt entry their IRQ handler must be called
  * vApplicationFPUSafeIRQHandler(), and if the application writer does not want
  * FPU registers to be saved on interrupt entry their IRQ handler must be
- * called vApplicationIRQHandler().
+ * called vApplicationFIQHandler().
  */
 void vApplicationFPUSafeIRQHandler( uint32_t ulICCIAR ) __attribute__((weak) );
 
@@ -213,7 +213,7 @@ volatile uint32_t ulPortInterruptNesting = 0UL;
 /* Used in the asm file. */
 __attribute__(( used )) uint32_t ulICCIAR = portICCIAR_INTERRUPT_ACKNOWLEDGE_REGISTER_ADDRESS;
 __attribute__(( used )) uint32_t ulICCEOIR = portICCEOIR_END_OF_INTERRUPT_REGISTER_ADDRESS;
-__attribute__(( used )) uint32_t ulICCPMR	= portICCPMR_PRIORITY_MASK_REGISTER_ADDRESS;
+__attribute__(( used )) uint32_t ulICCPMR = portICCPMR_PRIORITY_MASK_REGISTER_ADDRESS;
 __attribute__(( used )) const uint32_t ulMaxAPIPriorityMask = ( configMAX_API_CALL_INTERRUPT_PRIORITY << portPRIORITY_SHIFT );
 
 /*-----------------------------------------------------------*/
@@ -221,7 +221,7 @@ __attribute__(( used )) const uint32_t ulMaxAPIPriorityMask = ( configMAX_API_CA
 /*
  * Init VA of ulICCIAR, ulICCEOIR, ulICCPMR for assembly
  */
-void vInitAssemblyForOPTEE(void){
+void vInitVariableForFreeRTOS(void){
 
 	ulICCIAR = ( uint32_t ) phys_to_virt_io( (paddr_t) portICCIAR_INTERRUPT_ACKNOWLEDGE_REGISTER_ADDRESS, 0x1);
 	ulICCEOIR = ( uint32_t ) phys_to_virt_io( (paddr_t) portICCEOIR_END_OF_INTERRUPT_REGISTER_ADDRESS, 0x1);
@@ -339,8 +339,6 @@ static void prvTaskExitError( void )
 BaseType_t xPortStartScheduler( void )
 {
 	uint32_t ulAPSR;
-
-	vInitAssemblyForOPTEE();
 
 	#if( configASSERT_DEFINED == 1 )
 	{

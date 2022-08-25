@@ -2009,7 +2009,7 @@ static void prvAddNewTaskToReadyList( TCB_t * pxNewTCB )
 
 void vTaskStartScheduler( void )
 {
-	IMSG("Start FreeRTOS scheduler");
+	IMSG("Starting FreeRTOS scheduler");
 	vInitOPTEEStack();
 
 	BaseType_t xReturn;
@@ -5452,7 +5452,8 @@ void vInitOPTEEStack(void){
 		*pulIdleTaskStackSize = configMINIMAL_STACK_SIZE;
 	}
 #endif
+
 void vApplicationStackOverflowHook( TaskHandle_t xTask, char * pcTaskName ){
-	IMSG(" Overflow of %s task at %x !", pcTaskName, xTask);
+	IMSG("Overflow of %s task at %x !", pcTaskName, xTask);
 
 }

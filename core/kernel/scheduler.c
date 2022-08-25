@@ -20,67 +20,9 @@
 #include <FreeRTOS/task.h>
 #include <FreeRTOS/timers.h>
 
-uint32_t print1 = 1;
-uint32_t print2 = 1;
+uint32_t print = 0;
 
 TaskHandle_t test1_handler, test2_handler, test3_handler;
-
-void raise88(void){
-	IMSG("Raise");
-	for(uint32_t i=0; i<10000; i++);
-	itr_raise_pi(88);
-}
-
-void vPrintSMFIQ(){
-	IMSG(" - Go to SW"); 
-}
-
-void vPrintSMFIQret(){
-	IMSG(" -! Return to NW");
-}
-
-void currentMode(){
-	uint32_t cpsr;
-
-	asm volatile ("mrs	%[cpsr], cpsr" : [cpsr] "=r" (cpsr) );
-
-	IMSG(" - Current mode : %x", cpsr);
-}
-
-void vPrintFIQ(){
-	uint32_t cpsr;
-
-	asm volatile ("mrs	%[cpsr], cpsr" : [cpsr] "=r" (cpsr) );
-
-	IMSG(" - OPTEE Handler FIQ : %x", cpsr);
-}
-
-void vPrintIRQ(){
-	uint32_t cpsr;
-
-	asm volatile ("mrs	%[cpsr], cpsr" : [cpsr] "=r" (cpsr) );
-
-	uint32_t iar;
-	uint32_t id;
-
-	uint32_t addr = phys_to_virt_io(configINTERRUPT_CONTROLLER_BASE_ADDRESS + configINTERRUPT_CONTROLLER_CPU_INTERFACE_OFFSET, 0x1);
-	iar = io_read32(addr + 0x00C);;
-	id = iar & 0x3ff;
-
-	IMSG(" -! OPTEE Handler IRQ: %x, ID = %u", cpsr, id);
-}
-
-void vAssertInASM7(){
-	IMSG("ASM7");
-}
-
-void vAssertInASM8(){
-	IMSG("ASM8");
-}
-
-void vAssertInASMr0(uint32_t x){
-	IMSG("Check r0 : %x", x);
-}
 
 static void test1_task(void *pvParameters){
 	/* Stop warnings. */
@@ -88,9 +30,8 @@ static void test1_task(void *pvParameters){
 
 	while(1){
 
-		if(io_read32(&print1) == 1){
-			io_write32(&print1, 0);
-			io_write32(&print2, 1);
+		if(io_read32(&print) == 1){
+			io_write32(&print, 0);
 			IMSG("TEST TASK 1 -----");
 		}
 	}
@@ -102,9 +43,8 @@ static void test2_task(void *pvParameters){
 
 	while(1){
 
-		if(io_read32(&print2) == 1){
-			io_write32(&print2, 0);
-			io_write32(&print1 ,1);
+		if(io_read32(&print) == 0){
+			io_write32(&print, 1);
 			IMSG("----- TEST TASK 2");
 		}
 	}
@@ -120,8 +60,6 @@ void test3_task(void *pvParameters){
 		IMSG("--- TEST TASK 3 ---");
 
 		if(flag == 1){
-			print1 = 1;
-			print2 = 1;
 			vTaskResume(test1_handler);
 			vTaskResume(test2_handler);
 
@@ -192,7 +130,7 @@ void test3_task(void *pvParameters){
 			while(1);
 		}
 
-		xReturn = xTaskCreate( test3_task, "TASK3", configMINIMAL_STACK_SIZE, ( void * ) NULL, ( UBaseType_t ) 2, &test2_handler );      		
+		xReturn = xTaskCreate( test3_task, "TASK3", configMINIMAL_STACK_SIZE, ( void * ) NULL, ( UBaseType_t ) 2, &test3_handler );      		
 
 		if(xReturn != pdPASS){
 			IMSG("Couldn't create test2_tasks");
@@ -203,18 +141,7 @@ void test3_task(void *pvParameters){
 
 static enum itr_return Epit_Interrupt_Handler(void){
 	
-	static uint32_t delay = 20000/EPIT1_PERIODE_MS;
-
-	if (delay == 1) {
-		vTaskStartScheduler();
-	}
-
-	if (delay == 0) {
-		FreeRTOS_Tick_Handler();
-	}
-	else{
-		delay--;
-	}
+	FreeRTOS_Tick_Handler();
 
 	/*	Clearing interrupt	*/
 	io_write32(EPIT1_BASE_VA + EPITSR, 0x1);
@@ -252,7 +179,8 @@ static TEE_Result scheduler_init(void){
 	itr_enable(schedule_itr.it);
 
 	vCreateTestsTasks();
-	//vTaskStartScheduler();
+	vInitVariableForFreeRTOS();
+	vTaskStartScheduler();
 
 	return TEE_SUCCESS;
 }

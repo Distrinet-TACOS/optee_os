@@ -33,6 +33,7 @@
 	.set FIQ_MODE,	0x11
 
 	/* Hardware registers. */
+	.extern ulICCEOIR
 	.extern ulICCPMR
 
 	/* Variables and functions. */
@@ -42,7 +43,7 @@
 	.extern pxOpteeTopOfStack
 	.extern pxOpteeBottomOfStack
 	.extern vTaskSwitchContext
-	.extern vApplicationIRQHandler
+	.extern vApplicationFIQHandler
 	.extern ulPortInterruptNesting
 	.extern ulPortTaskHasFPUContext
 
@@ -66,7 +67,7 @@
 
 	/* Does the task have a floating point context that needs saving?  If
 	ulPortTaskHasFPUContext is 0 then no. */
-	LDR		R2, ulPortTaskHasFPUContextConst		// Remove floating-point feature
+	LDR		R2, ulPortTaskHasFPUContextConst		/* Remove floating-point feature */
 	LDR		R3, [R2]
 	CMP		R3, #0
 
@@ -125,7 +126,7 @@
 	/* Restore all system mode registers other than the SP (which is already
 	being used). */
 	POP		{R0-R12, R14}
-
+	
 	/* Return to the task code, loading CPSR on the way. */
 	RFEIA	sp!
 
@@ -204,8 +205,8 @@ switch_before_exit_from_optee:
 	PUSH	{r0-r12, lr}
 
 	/* Save the sp */
-	LDR		r0, pxOpteeBottomOfStackConst
-	STR		sp, [r0]
+	LDR		r1, pxOpteeBottomOfStackConst
+	STR		sp, [r1]
 
 	.endm
 
@@ -259,26 +260,38 @@ vPortRestoreTaskContext:
 FreeRTOS_FIQ_Handler:
 	/* Save used registers */
 	PUSH	{r0-r4, lr}
-
+	
 	/* Check status of scheduler */
-	LDR		r0, =xSchedulerRunning
-	LDR		r0, [r0]
-	CMP		r0, #1		
+	LDR		r1, =xSchedulerRunning
+	LDR		r1, [r1]
+	CMP		r1, #1
+
+	/* Write the value read from ICCIAR to ICCEOIR. */
+	LDRNE 	r2, ulICCEOIRConst
+	LDRNE	r2, [r2]
+	/* r0 hold the ICCIAR passed in parameter in gic_it_handle */
+	STRNE	r0, [r2]
 	/* Return if scheduler isn't running */		
 	POPNE	{r0-r4, pc}
 
 	/* If called from OPTEE Secure Monitor, save OPTEE context for futur 
 	   context switching between FreeRTOS and OPTEE */
-	LDR		r0, =uSwitchFromOPTEE
-	LDR		r1, [r0]
-	CMP		r1, #1
+	LDR		r1, =uSwitchFromOPTEE
+	LDR		r2, [r1]
+	CMP		r2, #1
 	BNE		keep_running
 	
 save_optee_context:
 	/* Reset uSwitchFromOPTEE */
 	MOV		r2, #0
-	STR		r2, [r0]
-	
+	STR		r2, [r1]
+
+	/* Write the value read from ICCIAR to ICCEOIR. */
+	LDR 	r1, ulICCEOIRConst
+	LDR		r1, [r1]
+	/* r0 hold the ICCIAR passed in parameter in gic_it_handle */
+	STR		r0, [r1]
+
 	/* Restore OPTEE registers */
 	POP		{r0-r4, lr}
 
@@ -288,21 +301,28 @@ save_optee_context:
 	portRESTORE_FREERTOS_CONTEXT
 
 keep_running:
-
+	/* Restore used registers */
 	POP		{r0-r4, lr}
-	/* POP register which are are push in native_intr_handler */
-	POP		{r0-r3, r8-r12, lr}
+
+#ifdef USE_APPLICATION_HANDLER
+	/* Be careful of using a hook function in the FreeRTOS handler on the imx6 with OPTEE
+	 * - IRQ shouldn't be enalable during the execution
+	 * - Be careful of the sp_mode if enabeling FIQ interrupt
+	 * - Check if your interrupt handler is the right one triggered */
 
 	/* Push the return address and SPSR. */
 	PUSH	{lr}
 	MRS		lr, SPSR
 	PUSH	{lr}
 
+	/*	PUSH register into the stack in FIQ mode */
 	/* Change to supervisor mode to allow reentry. */
 	CPS		#SVC_MODE
 
-	/* FIQ and SVC share the same stack so we need do adjust the sp */
-	SUB		sp, sp, #8
+	/* FIQ and SVC share the same stack so we need do adjust the sp 
+	   by number of elemt pushed * 4 */
+	SUB		sp, sp, #48
+#endif
 	/* Push used registers. */
 	PUSH	{r0-r4, r12}
 
@@ -314,6 +334,12 @@ keep_running:
 	ADD		r4, r1, #1
 	STR		r4, [r3]
 
+#ifdef USE_APPLICATION_HANDLER
+	/* Be careful of using a hook function in the FreeRTOS handler on the imx6 with OPTEE
+	 * - IRQ shouldn't be enalable during the execution
+	 * - Be careful of the sp_mode if enabeling FIQ interrupt
+	 * - Check if your interrupt handler is the right one triggered */
+
 	/* Ensure bit 2 of the stack pointer is clear.  r2 holds the bit 2 value for
 	future use.  _RB_ Does this ever actually need to be done provided the start
 	of the stack is 8-byte aligned? */
@@ -323,10 +349,17 @@ keep_running:
 
 	/* Call the interrupt handler.  r4 pushed to maintain alignment. */
 	PUSH	{r0-r4, lr}
-	LDR		r1, vApplicationIRQHandlerConst
+	LDR		r1, vApplicationFIQHandlerConst
 	BLX		r1
 	POP		{r0-r4, lr}
 	ADD		sp, sp, r2
+#endif
+
+	/* Write the value read from ICCIAR to ICCEOIR. */
+	LDR 	r2, ulICCEOIRConst
+	LDR		r2, [r2]
+	/* r0 hold the ICCIAR passed in parameter in gic_it_handle */
+	STR		r0, [r2]
 
 	/* Restore the old nesting count. */
 	STR		r1, [r3]
@@ -338,45 +371,76 @@ keep_running:
 	/* Did the interrupt request a context switch?  r1 holds the address of
 	ulPortYieldRequired and r0 the value of ulPortYieldRequired for future
 	use. */
-	LDR		r0, =ulPortYieldRequired
-	LDR		r1, [r0]
-	CMP		r1, #0
+	LDR		r1, =ulPortYieldRequired
+	LDR		r0, [r1]
+	CMP		r0, #0
+
 	BNE		switch_before_exit
 
 exit_without_switch:
+
 	/* No context switch.  Restore used registers, LR_irq and SPSR before
 	returning. */
 	POP		{r0-r4, r12}
+
+#ifdef USE_APPLICATION_HANDLER
+	/* Be careful of using a hook function in the FreeRTOS handler on the imx6 with OPTEE
+	 * - IRQ shouldn't be enalable during the execution
+	 * - Be careful of the sp_mode if enabeling FIQ interrupt
+	 * - Check if your interrupt handler is the right one triggered */
+
+	/* Restore original SVC sp */
+	ADD		sp, sp, #48
+
 	CPS		#FIQ_MODE
+
 	POP		{lr}
 	MSR		SPSR_cxsf, lr
 	POP		{lr}
+#endif
+
+	/* POP register which are are push in native_intr_handler */
+	POP		{r0-r3, r8-r12, lr}
 
 	MOVS	pc, lr
 
 switch_before_exit:
 	/* A context switch is to be performed.  Clear the context switch pending
 	flag. */
-	MOV		r1, #0
-	STR		r1, [r0]
+	MOV		r0, #0
+	STR		r0, [r1]
 
 	/* Restore used registers, LR-fiq and SPSR before saving the context
 	to the task stack. */
 	POP		{r0-r4, r12}
+
+#ifdef USE_APPLICATION_HANDLER
+	/* Be careful of using a hook function in the FreeRTOS handler on the imx6 with OPTEE
+	 * - IRQ shouldn't be enalable during the execution
+	 * - Be careful of the sp_mode if enabeling FIQ interrupt
+	 * - Check if your interrupt handler is the right one triggered */
+
+	/* Restore original SVC sp */
+	ADD		sp, sp, #48
+
 	CPS		#FIQ_MODE
+
 	POP		{lr}
 	MSR		SPSR_cxsf, lr
 	POP		{lr}
+#endif
 
+	/* POP register which are are push in native_intr_handler */
+	POP		{r0-r3, r8-r12, lr}
+	
 	portSAVE_CONTEXT
-
 	/* Call the function that selects the new task to execute.
 	vTaskSwitchContext() if vTaskSwitchContext() uses LDRD or STRD
 	instructions, or 8 byte aligned stack allocated data.  LR does not need
 	saving as a new LR will be loaded by portRESTORE_CONTEXT anyway. */
 	LDR		r0, vTaskSwitchContextConst
 	BLX		r0
-
+	
 	/* Restore the context of, and branch to, the task selected to execute
 	next. */
 	portRESTORE_CONTEXT
@@ -407,27 +471,27 @@ portRESTORE_OPTEE_CONTEXT:
 	portRESTORE_OPTEE_REG
 
 /******************************************************************************
- * If the application provides an implementation of vApplicationIRQHandler(),
+ * If the application provides an implementation of vApplicationFIQHandler(),
  * then it will get called directly without saving the FPU registers on
  * interrupt entry, and this weak implementation of
- * vApplicationIRQHandler() will not get called.
+ * vApplicationFIQHandler() will not get called.
  *
  * If the application provides its own implementation of
  * vApplicationFPUSafeIRQHandler() then this implementation of
- * vApplicationIRQHandler() will be called, save the FPU registers, and then
+ * vApplicationFIQHandler() will be called, save the FPU registers, and then
  * call vApplicationFPUSafeIRQHandler().
  *
  * Therefore, if the application writer wants FPU registers to be saved on
  * interrupt entry their IRQ handler must be called
  * vApplicationFPUSafeIRQHandler(), and if the application writer does not want
  * FPU registers to be saved on interrupt entry their IRQ handler must be
- * called vApplicationIRQHandler().
+ * called vApplicationFIQHandler().
  *****************************************************************************/
 
 .align 4
-.weak vApplicationIRQHandler
-.type vApplicationIRQHandler, %function
-vApplicationIRQHandler:
+.weak vApplicationFIQHandler
+.type vApplicationFIQHandler, %function
+vApplicationFIQHandler:
 	PUSH	{LR}
 	/* Floating-point feature not present in imx6 */
 	/* FMRX	R1,  FPSCR
@@ -446,6 +510,7 @@ vApplicationIRQHandler:
 
 	POP 	{PC}
 
+ulICCEOIRConst:	.word ulICCEOIR
 ulICCPMRConst: .word ulICCPMR
 pxCurrentTCBConst: .word pxCurrentTCB
 pxOpteeTopOfStackConst: .word pxOpteeTopOfStack
@@ -455,7 +520,7 @@ ulPortTaskHasFPUContextConst: .word ulPortTaskHasFPUContext
 ulMaxAPIPriorityMaskConst: .word ulMaxAPIPriorityMask
 vTaskSwitchContextConst: .word vTaskSwitchContext
 portRESTORE_OPTEE_CONTEXTConst:	.word portRESTORE_OPTEE_CONTEXT
-vApplicationIRQHandlerConst: .word vApplicationIRQHandler
+vApplicationFIQHandlerConst: .word vApplicationFIQHandler
 ulPortInterruptNestingConst: .word ulPortInterruptNesting
 vApplicationFPUSafeIRQHandlerConst: .word vApplicationFPUSafeIRQHandler
 

@@ -207,6 +207,10 @@ void vPortEndScheduler( void ) PRIVILEGED_FUNCTION;
                                     uint32_t ulStackDepth ) PRIVILEGED_FUNCTION;
 #endif
 
+/*
+ * Init some GIC register VA for FreeRTOS kernel
+ */
+void vInitVariableForFreeRTOS(void);
 /* *INDENT-OFF* */
 #ifdef __cplusplus
     }
