@@ -15,3 +15,4 @@ srcs-$(CFG_HWRNG_PTA) += hwrng.c
 subdirs-y += bcm
 
 srcs-y += testpta.c
+srcs-y += watchdog.c

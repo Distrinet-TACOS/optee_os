@@ -1,7 +1,6 @@
 #ifndef SCHEDULER_H
 #define SCHEDULER_H
 
-
 #define EPITCR 0x00
 #define EPITSR 0x04
 #define EPITLR 0x08
@@ -33,6 +32,6 @@
 #define EPIT1_BASE_PA 0x20d0000
 #define EPIT1_BASE_VA ((uint32_t) phys_to_virt_io(EPIT1_BASE_PA, 0x1))
 
-#define EPIT1_PERIODE_MS 1000 
+#define EPIT1_PERIODE_MS 1000
 
 #endif /* SCHEDULER_H */
