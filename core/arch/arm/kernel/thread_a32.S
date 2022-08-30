@@ -774,7 +774,7 @@ __thread_svc_handler:
 	/* We keep SVC code #0 to regular optee SVC handler */
     b		optee_svc_handler	
 freertos_svc_vector_table:
-	bl		FreeRTOS_SWI_Handler		/* SVC #1 */
+	bl		FreeRTOS_SVC_Handler		/* SVC #1 */
 	bl		portRESTORE_OPTEE_CONTEXT	/* SVC #2 */
 
 optee_svc_handler:

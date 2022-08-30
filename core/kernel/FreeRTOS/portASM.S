@@ -48,7 +48,7 @@
 	.extern ulPortTaskHasFPUContext
 
 	.global FreeRTOS_FIQ_Handler
-	.global FreeRTOS_SWI_Handler
+	.global FreeRTOS_SVC_Handler
 	.global vPortRestoreTaskContext
 	.global vApplicationIdleHook
 	.global	portRESTORE_OPTEE_CONTEXT
@@ -232,8 +232,8 @@ switch_before_exit_from_optee:
  * SVC handler is used to start the scheduler.
  *****************************************************************************/
 .align 4
-.type FreeRTOS_SWI_Handler, %function
-FreeRTOS_SWI_Handler:
+.type FreeRTOS_SVC_Handler, %function
+FreeRTOS_SVC_Handler:
 	/* Restore saved register in __thread_svc_handler */
 	POP		{r0}
 	POP		{r0-r7, lr}

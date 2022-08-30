@@ -86,8 +86,8 @@ extern uint32_t ulPortYieldRequired;			\
 
 #define portYIELD_FROM_ISR( x ) portEND_SWITCHING_ISR( x )
 
-extern void FreeRTOS_SWI_Handler( void );
-#define portYIELD()				__asm volatile ( "SVC #1" ::: "memory" ); /* Call FreeRTOS_SWI_Handler() */
+extern void FreeRTOS_SVC_Handler( void );
+#define portYIELD()				__asm volatile ( "SVC #1" ::: "memory" ); /* Call FreeRTOS_SVC_Handler() */
 #define portRestore_OPTEE()		__asm volatile ( "SVC #2" ::: "memory" ); /* Call portRESTORE_OPTEE_CONTEXT() */
 
 /*-----------------------------------------------------------
