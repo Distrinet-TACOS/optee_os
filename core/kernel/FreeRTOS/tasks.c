@@ -1152,7 +1152,10 @@ static void prvAddNewTaskToReadyList( TCB_t * pxNewTCB )
 		 * then it should run now. */
 		if( pxCurrentTCB->uxPriority < pxNewTCB->uxPriority )
 		{
-			taskYIELD_IF_USING_PREEMPTION();
+			//taskYIELD_IF_USING_PREEMPTION();
+
+			/* Switch to higher priority task at the next interrupt */
+			ulPortYieldRequired = pdTRUE;
 		}
 		else
 		{
@@ -1706,7 +1709,10 @@ static void prvAddNewTaskToReadyList( TCB_t * pxNewTCB )
 
 				if( xYieldRequired != pdFALSE )
 				{
-					taskYIELD_IF_USING_PREEMPTION();
+					//taskYIELD_IF_USING_PREEMPTION();
+
+					/* Switch to higher priority task at the next interrupt */
+					ulPortYieldRequired = pdTRUE;
 				}
 				else
 				{
@@ -1906,7 +1912,10 @@ static void prvAddNewTaskToReadyList( TCB_t * pxNewTCB )
 						/* This yield may not cause the task just resumed to run,
 						 * but will leave the lists in the correct state for the
 						 * next yield. */
-						taskYIELD_IF_USING_PREEMPTION();
+						// taskYIELD_IF_USING_PREEMPTION();
+
+						/* Switch to higher priority task at the next interrupt */
+						ulPortYieldRequired = pdTRUE;
 					}
 					else
 					{
@@ -2323,7 +2332,10 @@ BaseType_t xTaskResumeAll( void )
 							xAlreadyYielded = pdTRUE;
 						}
 					#endif
-					taskYIELD_IF_USING_PREEMPTION();
+					// taskYIELD_IF_USING_PREEMPTION();
+
+					/* Switch to higher priority task at the next interrupt */
+					ulPortYieldRequired = pdTRUE;
 				}
 				else
 				{
@@ -3461,7 +3473,6 @@ static portTASK_FUNCTION( prvIdleTask, pvParameters )
 
 	for( ; ; )
 	{
-		IMSG("Idle task");
 		/* See if any tasks have deleted themselves - if so then the idle task
 		 * is responsible for freeing the deleted task's TCB and stack. */
 		prvCheckTasksWaitingTermination();
@@ -4969,7 +4980,9 @@ TickType_t uxTaskResetEventItemValue( void )
 				{
 					/* The notified task has a priority above the currently
 					 * executing task so a yield is required. */
-					taskYIELD_IF_USING_PREEMPTION();
+					
+					/* Switch to higher priority task at the next interrupt */
+					ulPortYieldRequired = pdTRUE;
 				}
 				else
 				{
