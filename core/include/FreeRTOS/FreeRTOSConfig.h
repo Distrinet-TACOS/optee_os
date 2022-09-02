@@ -80,23 +80,23 @@
 #define secureconfigMAX_SECURE_CONTEXTS         5
 
 /* Optional functions - most linkers will remove unused functions anyway. */
-#define INCLUDE_vTaskPrioritySet                1
-#define INCLUDE_uxTaskPriorityGet               1
+#define INCLUDE_vTaskPrioritySet                0
+#define INCLUDE_uxTaskPriorityGet               0
 #define INCLUDE_vTaskDelete                     0
 #define INCLUDE_vTaskSuspend                    1
-#define INCLUDE_xResumeFromISR                  1
+#define INCLUDE_xResumeFromISR                  0
 #define INCLUDE_vTaskDelayUntil                 1
 #define INCLUDE_vTaskDelay                      1
-#define INCLUDE_xTaskGetSchedulerState          1
-#define INCLUDE_xTaskGetCurrentTaskHandle       1
+#define INCLUDE_xTaskGetSchedulerState          0
+#define INCLUDE_xTaskGetCurrentTaskHandle       0
 #define INCLUDE_uxTaskGetStackHighWaterMark     0
 #define INCLUDE_xTaskGetIdleTaskHandle          0
 #define INCLUDE_eTaskGetState                   0
-#define INCLUDE_xEventGroupSetBitFromISR        1
+#define INCLUDE_xEventGroupSetBitFromISR        0
 #define INCLUDE_xTimerPendFunctionCall          0
 #define INCLUDE_xTaskAbortDelay                 0
 #define INCLUDE_xTaskGetHandle                  0
-#define INCLUDE_xTaskResumeFromISR              1
+#define INCLUDE_xTaskResumeFromISR              0
 
 /* A header file that defines trace macro can be included here. */
 #include <trace.h>
@@ -105,6 +105,6 @@
 #include <assert.h>
 #include <kernel/scheduler.h>
 
-#define configTICK_RATE_HZ                      4000/EPIT1_PERIODE_MS
+#define configTICK_RATE_HZ                      1000/EPIT1_PERIODE_MS
 
 #endif /* FREERTOS_CONFIG_H */

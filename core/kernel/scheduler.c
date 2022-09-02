@@ -57,7 +57,6 @@ static TEE_Result scheduler_init(void){
 
 	IMSG("Enable EPIT TIMER");
 	itr_enable(schedule_itr.it);
-
 	vInitVariableForFreeRTOS();
 	vTaskStartScheduler();
 

@@ -136,7 +136,7 @@ the CPU itself before modifying certain hardware registers. */
 	io_write8(portICCPMR_PRIORITY_MASK_REGISTER_VA, portUNMASK_VALUE);	\
 	__asm volatile (	"DSB		\n"									\
 						"ISB		\n" );								\
-	/* portCPU_FIQ_ENABLE(); */											\ 
+	/* portCPU_FIQ_ENABLE(); */											\
 }
 
 #define portINTERRUPT_PRIORITY_REGISTER_OFFSET		0x400UL
@@ -492,17 +492,18 @@ void FreeRTOS_Tick_Handler( void )
 
 	void vPortTaskUsesFPU( void )
 	{
-		// uint32_t ulInitialFPSCR = 0;
+		#ifdef USE_APPLICATION_HANDLER
+			uint32_t ulInitialFPSCR = 0;
 
-		/* A task is registering the fact that it needs an FPU context.  Set the
-		FPU flag (which is saved as part of the task context). */
-		// ulPortTaskHasFPUContext = pdTRUE;
-		ulPortTaskHasFPUContext = pdFALSE;
+			/* A task is registering the fact that it needs an FPU context.  Set the
+			FPU flag (which is saved as part of the task context). */
+			ulPortTaskHasFPUContext = pdTRUE;
 
-		/* Initialise the floating point status register. */
-		// __asm volatile ( "FMXR 	FPSCR, %0" :: "r" (ulInitialFPSCR) : "memory" );
-		IMSG("Floating Point Unit isn't implemented in imx6 dual/quad");
-		configASSERT(NULL);
+			/* Initialise the floating point status register. */
+			__asm volatile ( "FMXR 	FPSCR, %0" :: "r" (ulInitialFPSCR) : "memory" );
+		#else
+			DMSG("CFG_WITH_VFP is not defined");
+		#endif
 	}
 
 #endif /* configUSE_TASK_FPU_SUPPORT */
@@ -584,5 +585,5 @@ uint32_t ulReturn;
 void vApplicationFPUSafeIRQHandler( uint32_t ulICCIAR )
 {
 	( void ) ulICCIAR;
-	configASSERT( ( volatile void * ) NULL );
+	// configASSERT( ( volatile void * ) NULL );
 }

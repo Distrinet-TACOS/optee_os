@@ -24,6 +24,7 @@
  *
  * 1 tab == 4 spaces!
  */
+
 	.eabi_attribute Tag_ABI_align_preserved, 1
 	.text
 	.arm
@@ -43,9 +44,9 @@
 	.extern pxOpteeTopOfStack
 	.extern pxOpteeBottomOfStack
 	.extern vTaskSwitchContext
-	.extern vApplicationFIQHandler
 	.extern ulPortInterruptNesting
 	.extern ulPortTaskHasFPUContext
+	.extern vEnableFloatingPointExtensions
 
 	.global FreeRTOS_FIQ_Handler
 	.global FreeRTOS_SVC_Handler
@@ -67,7 +68,7 @@
 
 	/* Does the task have a floating point context that needs saving?  If
 	ulPortTaskHasFPUContext is 0 then no. */
-	LDR		R2, ulPortTaskHasFPUContextConst		/* Remove floating-point feature */
+	LDR		R2, ulPortTaskHasFPUContextConst
 	LDR		R3, [R2]
 	CMP		R3, #0
 
@@ -98,7 +99,7 @@
 
 	/* Is there a floating point context to restore?  If the restored
 	ulPortTaskHasFPUContext is zero then no. */
-	LDR		R0, ulPortTaskHasFPUContextConst		/* Remove floating-point feature */
+	LDR		R0, ulPortTaskHasFPUContextConst
 	POP		{R1}
 	STR		R1, [R0]
 	CMP		R1, #0
@@ -137,6 +138,42 @@
 .macro portRESTORE_FREERTOS_CONTEXT
 	/* Push used registers */
 	PUSH	{r0-r4, lr}
+
+	/* Increment nesting count.  r3 holds the address of ulPortInterruptNesting
+	for future use.  r1 holds the original ulPortInterruptNesting value for
+	future use. */
+	LDR		r3, ulPortInterruptNestingConst
+	LDR		r1, [r3]
+	ADD		r4, r1, #1
+	STR		r4, [r3]
+
+#ifdef USE_APPLICATION_HANDLER
+	/* Be careful of using a hook function in the FreeRTOS handler on the imx6 with OPTEE
+	 * - IRQ shouldn't be enalable during the execution
+	 * - Be careful of the sp_mode if enabeling FIQ interrupt
+	 * - Check if your interrupt handler is the right one triggered */
+
+	/* Ensure bit 2 of the stack pointer is clear.  r2 holds the bit 2 value for
+	future use.  _RB_ Does this ever actually need to be done provided the start
+	of the stack is 8-byte aligned? */
+	MOV		r2, sp
+	AND		r2, r2, #4
+	SUB		sp, sp, r2
+
+	/* Call the interrupt handler.  r4 pushed to maintain alignment. */
+	PUSH	{r0-r4, lr}
+	LDR		r1, vApplicationFIQHandlerConst
+	BLX		r1
+	POP		{r0-r4, lr}
+	ADD		sp, sp, r2
+#endif
+
+	/* Restore the old nesting count. */
+	STR		r1, [r3]
+
+	/* A context switch is never performed if the nesting count is not 0. */
+	CMP		r1, #0
+	BNE		exit_without_switch_from_optee
 
 	/* Did the interrupt request a context switch?  r1 holds the address of
 	ulPortYieldRequired and r0 the value of ulPortYieldRequired for future
@@ -323,6 +360,7 @@ keep_running:
 	   by number of elemt pushed * 4 */
 	SUB		sp, sp, #48
 #endif
+	
 	/* Push used registers. */
 	PUSH	{r0-r4, r12}
 
@@ -493,20 +531,24 @@ portRESTORE_OPTEE_CONTEXT:
 .type vApplicationFIQHandler, %function
 vApplicationFIQHandler:
 	PUSH	{LR}
-	/* Floating-point feature not present in imx6 */
-	/* FMRX	R1,  FPSCR
-	VPUSH	{D0-D15}
-	VPUSH	{D16-D31} */
-	// PUSH	{R1}
-	
-	/* Floating-point feature not present in imx6 */
-	/* LDR		r1, vApplicationFPUSafeIRQHandlerConst
-	BLX		r1 */
 
-	// POP		{R0}
-	/* VPOP	{D16-D31}
+	VMRS	R1, FPEXC
+	ORR		R1, R1, #0x40000000
+	VMSR	FPEXC, R1
+
+	FMRX	R1,  FPSCR
+
+	VPUSH	{D0-D15}
+	VPUSH	{D16-D31}
+	PUSH	{R1}
+	
+	LDR		R1, vApplicationFPUSafeIRQHandlerConst
+	BLX		R1
+
+	POP		{R0}
+	VPOP	{D16-D31}
 	VPOP	{D0-D15}
-	VMSR	FPSCR, R0 */
+	VMSR	FPSCR, R0
 
 	POP 	{PC}
 
