@@ -45,9 +45,9 @@ static TEE_Result scheduler_init(void){
 	io_write32(EPIT1_BASE_VA + EPITCR, 0x0);
 	io_write32(EPIT1_BASE_VA + EPITCR, config);
 	io_write32(EPIT1_BASE_VA + EPITSR, 0x1);
-	io_write32(EPIT1_BASE_VA + EPITLR, EPIT1_PERIODE_MS);
+	io_write32(EPIT1_BASE_VA + EPITLR, EPIT1_PERIOD_TICKS);
 
-	io_write32(EPIT1_BASE_VA + EPITCMPR, EPIT1_PERIODE_MS);
+	io_write32(EPIT1_BASE_VA + EPITCMPR, EPIT1_PERIOD_TICKS);
 	/* Only enabling EPIT now as explained in 24.5.1 in manual. */
 	io_write32(EPIT1_BASE_VA + EPITCR, io_read32(EPIT1_BASE_VA + EPITCR) | EPITCR_EN);
 

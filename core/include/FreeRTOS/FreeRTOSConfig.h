@@ -105,6 +105,6 @@
 #include <assert.h>
 #include <kernel/scheduler.h>
 
-#define configTICK_RATE_HZ                      1000/EPIT1_PERIODE_MS
+#define configTICK_RATE_HZ                      1000 / EPIT1_PERIOD_MS
 
 #endif /* FREERTOS_CONFIG_H */

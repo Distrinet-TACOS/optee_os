@@ -134,7 +134,7 @@ static void watchdog_task(void)
 		console_flush();
 
 		notif_send_async(notif_value);
-		vTaskDelay(1);
+		vTaskDelay(5);
 	}
 }
 

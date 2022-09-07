@@ -32,6 +32,7 @@
 #define EPIT1_BASE_PA 0x20d0000
 #define EPIT1_BASE_VA ((uint32_t) phys_to_virt_io(EPIT1_BASE_PA, 0x1))
 
-#define EPIT1_PERIODE_MS 1000
+#define EPIT1_PERIOD_TICKS 100
+#define EPIT1_PERIOD_MS 1 * EPIT1_PERIOD_TICKS
 
 #endif /* SCHEDULER_H */
