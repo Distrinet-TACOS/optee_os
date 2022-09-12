@@ -435,7 +435,7 @@ END_FUNC thread_unwind_user_mode
 	.else
 	push	{r0-r3, r12, lr}
 	.endif
-	
+
 	bl	thread_check_canaries
 	bl	itr_core_handler
 
@@ -610,7 +610,6 @@ thread_excp_vect_workaround:
 	mrs	r0, spsr
 	cmp_spsr_user_mode r0
 	bne	1f
-	
 	/* Invalidate the branch predictor for the current processor. */
 	write_bpiall
 	isb
@@ -752,30 +751,32 @@ __thread_abort_common:
 	/* end thread_abort_common */
 
 __thread_svc_handler:
-	cpsid	aif	
+	cpsid	aif
+
 	maybe_restore_mapping
 
 	push	{r0-r7, lr}
-	mrs		r0, spsr
+	mrs	r0, spsr
 	push	{r0}
 
 	/* For FreeRTOS */
 	/* Extract and check SVC Number in r0. Only use 8-bits of range here */
-	tst		r0, #0x20             // Occurred in Thumb state?
-    ldrhne	r0, [lr,#-2]          // Yes: load halfword and...
-    bicne	r0, r0,#0xFF00        // ...extract comment field.
-    ldreq	r0, [lr,#-4]          // No: load word and...
-    biceq	r0, r0,#0xFF000000    // ...extract comment field.
+	tst	r0, #0x20		/* Occurred in Thumb state? */
+    	ldrhne	r0, [lr, #-2]		/* Yes: load halfword and... */
+    	bicne	r0, r0, #0xFF00		/* ...extract comment field. */
+    	ldreq	r0, [lr, #-4]		/* No: load word and... */
+    	biceq	r0, r0, #0xFF000000	/* ...extract comment field. */
 
-	cmp 	r0, #2						/* Range check */
-	bhi		optee_svc_handler
-	add		pc, pc, r0, LSL #2
+	cmp 	r0, #2			/* Range check */
+	bhi	optee_svc_handler
+	add	pc, pc, r0, LSL #2
 	nop
+
 	/* We keep SVC code #0 to regular optee SVC handler */
-    b		optee_svc_handler	
+    	b	optee_svc_handler	
 freertos_svc_vector_table:
-	bl		FreeRTOS_SVC_Handler		/* SVC #1 */
-	bl		portRESTORE_OPTEE_CONTEXT	/* SVC #2 */
+	bl	FreeRTOS_SVC_Handler		/* SVC #1 */
+	bl	portRESTORE_OPTEE_CONTEXT	/* SVC #2 */
 
 optee_svc_handler:
 	mov	r0, sp

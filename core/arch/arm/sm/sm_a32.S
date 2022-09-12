@@ -422,4 +422,3 @@ FUNC sm_get_nsec_ctx , :
 
 	bx	lr
 END_FUNC sm_get_nsec_ctx
-

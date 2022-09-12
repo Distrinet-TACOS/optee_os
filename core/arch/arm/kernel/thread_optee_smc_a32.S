@@ -70,7 +70,6 @@ UNWIND(	.cantunwind)
  	/* Secure Monitor received a FIQ and passed control to us. */
 	bl	thread_check_canaries
 	bl	itr_core_handler
-
 	ldr	r0, =TEESMC_OPTEED_RETURN_FIQ_DONE
 	smc	#0
 	b	.	/* SMC should not return */

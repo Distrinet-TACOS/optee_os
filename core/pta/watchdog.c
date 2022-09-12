@@ -4,9 +4,7 @@
 #include <kernel/notif.h>
 #include <console.h>
 
-#include <FreeRTOS/FreeRTOSConfig.h>
 #include <FreeRTOS/FreeRTOS.h>
-#include <FreeRTOS/portmacro.h>
 #include <FreeRTOS/task.h>
 
 #define PTA_NAME "watchdog.pta"
@@ -33,32 +31,11 @@ static TEE_Result update(void)
 	return TEE_SUCCESS;
 }
 
-// static TEE_Result get_notif_value(uint32_t ptypes,
-// 				  TEE_Param params[TEE_NUM_PARAMS])
-// {
-// 	uint32_t expected_ptypes =
-// 		TEE_PARAM_TYPES(TEE_PARAM_TYPE_VALUE_OUTPUT,
-// 				TEE_PARAM_TYPE_NONE, TEE_PARAM_TYPE_NONE,
-// 				TEE_PARAM_TYPE_NONE);
-
-// 	if (ptypes != expected_ptypes)
-// 		return TEE_ERROR_BAD_PARAMETERS;
-
-// 	if (notif_value < 0)
-// 		return TEE_ERROR_BAD_STATE;
-
-// 	params[0].value.a = (uint32_t)notif_value;
-// 	return TEE_SUCCESS;
-// }
-
 static TEE_Result invoke_command(void *pSessionContext __unused,
-				 uint32_t nCommandID, uint32_t nParamTypes,
-				 TEE_Param pParams[TEE_NUM_PARAMS])
+				 uint32_t nCommandID, uint32_t nParamTypes __unused,
+				 TEE_Param pParams[TEE_NUM_PARAMS] __unused)
 {
 	switch (nCommandID) {
-	// case PTA_WATCHDOG_GET_NOTIF_VALUE:
-	// 	return get_notif_value(nParamTypes, pParams);
-	// 	break;
 	case PTA_WATCHDOG_UPDATE:
 		return update();
 	default:
@@ -70,7 +47,7 @@ static TEE_Result invoke_command(void *pSessionContext __unused,
 
 static bool first = false;
 
-static void watchdog_task(void)
+static void watchdog_task(void *_ __unused)
 {
 	const char *p;
 	const char *alive1 = "[2J\

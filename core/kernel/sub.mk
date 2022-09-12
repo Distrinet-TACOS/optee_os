@@ -40,6 +40,3 @@ srcs-$(CFG_EMBEDDED_TS) += embedded_ts.c
 srcs-y += pseudo_ta.c
 
 srcs-y += scheduler.c
-
-subdirs-y += FreeRTOS
-
