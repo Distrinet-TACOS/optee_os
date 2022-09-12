@@ -204,6 +204,8 @@ static void get_async_notif_value(struct thread_smc_args *args)
 		args->a2 |= OPTEE_SMC_ASYNC_NOTIF_PENDING;
 }
 
+#define stamp(x) asm volatile("mrc p15, 0, %0, c9, c13, 0" : "=r"(x))
+
 /*
  * If tee_entry_fast() is overridden, it's still supposed to call this
  * function.
@@ -277,7 +279,10 @@ void __tee_entry_fast(struct thread_smc_args *args)
 		else
 			args->a0 = OPTEE_SMC_RETURN_UNKNOWN_FUNCTION;
 		break;
-
+	case OPTEE_SMC_FAST_BENCH_CALL:
+			args->a0 = 0;
+			stamp(args->a1);
+		break;
 	default:
 		args->a0 = OPTEE_SMC_RETURN_UNKNOWN_FUNCTION;
 		break;

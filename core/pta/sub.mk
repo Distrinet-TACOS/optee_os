@@ -11,5 +11,6 @@ srcs-$(CFG_SYSTEM_PTA) += system.c
 srcs-$(CFG_NXP_SE05X) += scp03.c
 srcs-$(CFG_SCMI_PTA) += scmi.c
 srcs-$(CFG_HWRNG_PTA) += hwrng.c
-srcs-y += bench.c
+
+subdirs-y += tacos-bench
 subdirs-y += bcm

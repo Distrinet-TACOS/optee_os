@@ -46,7 +46,6 @@
 
 #ifdef CFG_SHARED_SECURE_PERIPHERALS
 #include <drivers/secure_ssp_driver.h>
-#include <ssp_bench.h>
 #endif
 
 static struct gic_data gic_data __nex_bss;
@@ -120,7 +119,6 @@ void console_init(void)
 
 #ifdef CFG_SHARED_SECURE_PERIPHERALS
 	register_serial_chip_con_split(&console_data.chip);
-	register_serial_chip_bench(&console_data.chip);
 #endif
 #endif
 }
