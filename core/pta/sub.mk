@@ -13,5 +13,3 @@ srcs-$(CFG_SCMI_PTA) += scmi.c
 srcs-$(CFG_HWRNG_PTA) += hwrng.c
 
 subdirs-y += bcm
-
-srcs-y += watchdog.c
