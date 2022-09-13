@@ -101,7 +101,6 @@ void notif_send_async(uint32_t value)
 	assert(value <= NOTIF_ASYNC_VALUE_MAX);
 	old_itr_status = cpu_spin_lock_xsave(&notif_lock);
 
-	DMSG("0x%"PRIx32, value);
 	bit_set(notif_values, value);
 	itr_raise_pi(CFG_CORE_ASYNC_NOTIF_INTID);
 
