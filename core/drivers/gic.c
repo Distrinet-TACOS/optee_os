@@ -16,6 +16,7 @@
 #include <util.h>
 #include <io.h>
 #include <trace.h>
+#include <FreeRTOS/FreeRTOS.h>
 
 /* Offsets from gic.gicc_base */
 #define GICC_CTLR		(0x000)
@@ -69,6 +70,9 @@
 #define GICC_IAR_IT_ID_MASK	0x3ff
 #define GICC_IAR_CPU_ID_MASK	0x7
 #define GICC_IAR_CPU_ID_SHIFT	10
+
+/* FreeRTOS IRQ Handler */
+extern void FreeRTOS_FIQ_Handler(uint32_t iar);
 
 static void gic_op_add(struct itr_chip *chip, size_t it, uint32_t flags);
 static void gic_op_enable(struct itr_chip *chip, size_t it);
@@ -464,11 +468,19 @@ void gic_it_handle(struct gic_data *gd)
 	iar = gic_read_iar(gd);
 	id = iar & GICC_IAR_IT_ID_MASK;
 
-	if (id <= gd->max_it)
+	if (id == 88) {
+		/* FreeRTOS tick handler */
+		FreeRTOS_Tick_Handler();
+		/* Reset EPIT interrupt */
 		itr_handle(id);
-	else
+		/* Write EOIR register in FreeRTOS_FIQ_Handler from portASM.S */
+		FreeRTOS_FIQ_Handler(iar);
+		return;
+	} else if (id <= gd->max_it) {
+		itr_handle(id);
+	} else {
 		DMSG("ignoring interrupt %" PRIu32, id);
-
+	}
 	gic_write_eoir(gd, iar);
 }
 

@@ -1,5 +1,6 @@
 subdirs-y += crypto
 subdirs-y += drivers
+subdirs-y += FreeRTOS
 subdirs-y += kernel
 subdirs-y += mm
 subdirs-y += pta
