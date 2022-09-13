@@ -17,10 +17,12 @@
 #include <FreeRTOS/FreeRTOS.h>
 #include <FreeRTOS/task.h>
 
+static uint32_t base;
+
 static enum itr_return epit_interrupt_handler(struct itr_handler *h __unused)
 {
-	/*	Clearing interrupt	*/
-	io_write32(EPIT1_BASE_VA + EPITSR, 0x1);
+	/* Clearing interrupt */
+	io_write32(base + EPITSR, 0x1);
 
 	return ITRR_HANDLED;
 }
@@ -38,15 +40,16 @@ static TEE_Result scheduler_init(void)
 			  EPITCR_PRESC(32) | EPITCR_RLD | EPITCR_OCIEN |
 			  EPITCR_ENMOD;
 
-	io_write32(EPIT1_BASE_VA + EPITCR, 0x0);
-	io_write32(EPIT1_BASE_VA + EPITCR, config);
-	io_write32(EPIT1_BASE_VA + EPITSR, 0x1);
-	io_write32(EPIT1_BASE_VA + EPITLR, EPIT1_PERIOD_TICKS);
+	base = (uint32_t)phys_to_virt_io(EPIT1_BASE_PA, EPIT_SIZE);
 
-	io_write32(EPIT1_BASE_VA + EPITCMPR, EPIT1_PERIOD_TICKS);
+	io_write32(base + EPITCR, 0x0);
+	io_write32(base + EPITCR, config);
+	io_write32(base + EPITSR, 0x1);
+	io_write32(base + EPITLR, EPIT1_PERIOD_TICKS);
+
+	io_write32(base + EPITCMPR, EPIT1_PERIOD_TICKS);
 	/* Only enabling EPIT now as explained in 24.5.1 in manual. */
-	io_write32(EPIT1_BASE_VA + EPITCR,
-		   io_read32(EPIT1_BASE_VA + EPITCR) | EPITCR_EN);
+	io_write32(base + EPITCR, io_read32(base + EPITCR) | EPITCR_EN);
 
 	itr_add(&schedule_itr);
 	itr_set_affinity(schedule_itr.it, 1);
