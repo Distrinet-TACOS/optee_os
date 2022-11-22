@@ -29,6 +29,7 @@
 	.text
 	.arm
 
+	.set MODE_MASK,	0x1f
 	.set SYS_MODE,	0x1f
 	.set SVC_MODE,	0x13
 	.set FIQ_MODE,	0x11
@@ -221,29 +222,41 @@ switch_before_exit_from_optee:
 
 .macro portSAVE_OPTEE_REG
 
-	/* Set sp of OPTEE Stack */
-	CPS 	#SYS_MODE
-	LDR		sp, pxOpteeTopOfStackConst
-	LDR		sp, [sp]
-	CPS		#SVC_MODE
+	// Get control block
+	push	{r0}
+	ldr	r0, pxOpteeTopOfStackConst
+	ldr	r0, [r0]
 
-	/* Store lr and SPSR, we will overwrite the SPSR by the CPSR just after*/
-	SRSDB	sp, #SYS_MODE
-	CPS 	#SYS_MODE
-	
-	/* Save the right CPSR, because we change */
-	MRS		lr, CPSR
-	BIC		lr, lr, #0x1f
-	ORR		lr, lr,	#SVC_MODE 
-	PUSH	{lr}
-	SUB		sp, sp, #4
+	// Store r0-r7
+	stmfd	r0!, {r1-r7}
+	pop	{r1}
+	stmfd	r0!, {r1}
 
-	/* Save registers */
-	PUSH	{r0-r12, lr}
+	// Save banked SPSR, sp & lr
+	mrs	r1, spsr
+	stmfd	r0!, {r1, sp, lr} // Technically using sp in this list is deprecated.
 
-	/* Save the sp */
-	LDR		r1, pxOpteeBottomOfStackConst
-	STR		sp, [r1]
+	// Save bandked r8-r12 if in FIQ mode
+	mrs	r1, cpsr
+	and	r1, r1, #MODE_MASK
+	cmp	r1, #FIQ_MODE
+	bne	1f
+	stmfd	r0!, {r8-r12}
+1:
+	// Save CPSR
+	mrs	r1, cpsr
+	stmfd	r0!, {r1}
+
+	// Change to SYS for access to banked registers
+	cps	#SYS_MODE
+
+	// Store r8-r12, sp & lr
+	stmfd	r0!, {r8-r12, sp, lr} // Technically using sp in this list is deprecated.
+
+	// Save control block end & set system sp to that end
+	mov	sp, r0
+	ldr	r0, pxOpteeBottomOfStackConst
+	str	sp, [r0]
 
 	.endm
 
@@ -251,15 +264,32 @@ switch_before_exit_from_optee:
 
 .macro portRESTORE_OPTEE_REG
 
-	/* Set sp of OPTEE Stack */
-	LDR		sp, pxOpteeBottomOfStackConst
-	LDR		sp, [sp]
-	
-	/* Restore registers */
-	POP		{r0-r12, lr}
+	// Retrieve control block end
+	ldr	r0, pxOpteeBottomOfStackConst
+	ldr	r0, [r0]
 
-	/* Return to the task code, loading CPSR on the way. */
-	RFEIA 	sp
+	// Restore r8-r12, sp & lr
+	ldmfd	r0!, {r8-r12, sp, lr} // Technically using sp in this list is deprecated.
+
+	// Restore CPSR
+	ldmfd	r0!, {r1}
+	msr	cpsr, r1
+
+	// Restore r8-r12 if in FIQ mode
+	and	r1, r1, #MODE_MASK
+	cmp	r1, #FIQ_MODE
+	bne	1f
+	ldmfd	r0!, {r8-r12}
+1:
+	// Restore SPSR, sp & lr
+	ldmfd	r0!, {r1, sp, lr} // Technically using sp in this list is deprecated.
+	msr	spsr, r1
+
+	// Restore r0-r7
+	ldmfd	r0, {r0-r7}
+
+	// Return from interrupt handler
+	bx	lr
 
 	.endm
 
