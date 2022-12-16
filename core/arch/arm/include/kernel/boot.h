@@ -45,7 +45,8 @@ extern const struct core_mmu_config boot_mmu_config;
 
 /* @nsec_entry is unused if using CFG_WITH_ARM_TRUSTED_FW */
 void boot_init_primary_early(unsigned long pageable_part,
-			     unsigned long nsec_entry);
+			     unsigned long nsec_entry __maybe_unused,
+			     unsigned long dt_addr, unsigned long args);
 void boot_init_primary_late(unsigned long fdt);
 
 #if defined(CFG_WITH_ARM_TRUSTED_FW)

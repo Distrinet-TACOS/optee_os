@@ -43,6 +43,8 @@
 #include <kernel/vfp.h>
 #endif
 
+#include <linux_reboot.h>
+
 /*
  * In this file we're using unsigned long to represent physical pointers as
  * they are received in a single register when OP-TEE is initially entered.
@@ -1192,7 +1194,8 @@ void init_tee_runtime(void)
 	call_initcalls();
 }
 
-static void init_primary(unsigned long pageable_part, unsigned long nsec_entry)
+static void init_primary(unsigned long pageable_part, unsigned long nsec_entry,
+			 unsigned long dt_addr, unsigned long args)
 {
 	/*
 	 * Mask asynchronous exceptions before switch to the thread vector
@@ -1227,6 +1230,8 @@ static void init_primary(unsigned long pageable_part, unsigned long nsec_entry)
 	thread_init_primary();
 	thread_init_per_cpu();
 	init_sec_mon(nsec_entry);
+
+	set_nsec_entry_reboot(nsec_entry, dt_addr, args);
 }
 
 /*
@@ -1289,7 +1294,8 @@ static void init_secondary_helper(unsigned long nsec_entry)
  * the unpaged area so that it lies in the init area.
  */
 void __weak boot_init_primary_early(unsigned long pageable_part,
-				    unsigned long nsec_entry __maybe_unused)
+				    unsigned long nsec_entry __maybe_unused,
+				    unsigned long dt_addr, unsigned long args)
 {
 	unsigned long e = PADDR_INVALID;
 
@@ -1297,7 +1303,7 @@ void __weak boot_init_primary_early(unsigned long pageable_part,
 	e = nsec_entry;
 #endif
 
-	init_primary(pageable_part, e);
+	init_primary(pageable_part, e, dt_addr, args);
 }
 
 #if defined(CFG_WITH_ARM_TRUSTED_FW)

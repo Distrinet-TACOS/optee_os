@@ -343,15 +343,12 @@ static void gic_it_enable(struct gic_data *gd, size_t it)
 	size_t idx = it / NUM_INTS_PER_REG;
 	uint32_t mask = 1 << (it % NUM_INTS_PER_REG);
 	vaddr_t base = gd->gicd_base;
-	IMSG("Invoking print function at gic.c:75ca77\n");
 
 	/* Assigned to group0 */
 	assert(!(io_read32(base + GICD_IGROUPR(idx)) & mask));
-	IMSG("Invoking print function at gic.c:06c46a\n");
 
 	/* Enable the interrupt */
 	io_write32(base + GICD_ISENABLER(idx), mask);
-	IMSG("Invoking print function at gic.c:29a7c1\n");
 }
 
 static void gic_it_disable(struct gic_data *gd, size_t it)

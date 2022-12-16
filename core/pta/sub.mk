@@ -13,5 +13,5 @@ srcs-$(CFG_SCMI_PTA) += scmi.c
 srcs-$(CFG_HWRNG_PTA) += hwrng.c
 
 subdirs-y += bcm
-srcs-y += watchdog.c
-srcs-y += linux-reboot.c
+srcs-y += linux_reboot_a32.S
+srcs-y += linux_reboot.c
