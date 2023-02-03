@@ -782,6 +782,11 @@ struct mobj_ffa *thread_spmc_populate_mobj_from_rx(uint64_t cookie);
 void thread_spmc_relinquish(uint64_t memory_region_handle);
 #endif
 
+/*
+ * Resets allocated shared memory for all threads on current core.
+ */
+void reset_threads(void);
+
 #endif /*__ASSEMBLER__*/
 
 #endif /*KERNEL_THREAD_H*/

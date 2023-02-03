@@ -16,6 +16,14 @@
 
 static struct serial_chip *serial_console __nex_bss;
 
+bool __weak console_have_rx_data(void) {
+	if (!serial_console) {
+		return;
+	}
+
+	return serial_console->ops->have_rx_data(serial_console);
+}
+
 void __weak console_putc(int ch)
 {
 	if (!serial_console)

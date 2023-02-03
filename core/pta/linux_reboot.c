@@ -13,6 +13,9 @@
 #include <kernel/tz_ssvce_pl310.h>
 #include <kernel/boot.h>
 #include <console.h>
+#include <kernel/unwind.h>
+#include <kernel/scheduler.h>
+#include <sm/sm.h>
 
 #define PTA_NAME "linux-reboot.pta"
 
@@ -59,11 +62,15 @@ static enum itr_return turn_cpu_off(struct itr_handler *h __unused)
 	gicc_base = core_mmu_get_va(GIC_BASE + GICC_OFFSET, MEM_AREA_IO_SEC, 1);
 	io_write32(gicc_base + GICC_EOIR, handler.it);
 
+	reset_threads();
+
 	psci_cpu_off();
+
+	return ITRR_HANDLED;
 }
 
 static struct boot_args {
-	unsigned long nsec_entry;
+	uint32_t nsec_entry;
 	uint32_t dt_addr;
 	uint32_t args;
 } boot_args;
@@ -76,48 +83,69 @@ void set_nsec_entry_reboot(unsigned long nsec_entry, unsigned long dt_addr,
 	boot_args.args = args;
 }
 
-static void restart_normal_world(void *img, size_t size)
+size_t size;
+
+// static void *imgg;
+
+void restart_normal_world(void *img)
 {
 	void (*fptr)(unsigned long, unsigned long) = NULL;
-	vaddr_t pl310 = pl310_base();
+	vaddr_t va;
+	uint32_t val;
+	int i;
+	// vaddr_t pl310 = pl310_base();
+	uint32_t cpsr;
+	vaddr_t gicc_base =
+		core_mmu_get_va(GIC_BASE + GICC_OFFSET, MEM_AREA_IO_SEC, 1);
 
-	asm volatile("cpsid i" ::: "memory", "cc");
+	// unregister_task("Linux watchdog");
+
+	IMSG("Current core: %x", __get_core_pos());
+	asm volatile(" mrs %0, cpsr" : "=r"(cpsr) :);
+	IMSG("CPSR: 0x%x", cpsr);
+
+	IMSG("Acknowledging and leaving FIQ interrupt mode.");
+	// itr_disable(88);
+	io_write32(gicc_base + GICC_EOIR, 88);
+	asm volatile("cps #0x13" ::: "memory", "cc");
+	
+	IMSG("Disabling all other cpus.");
+	itr_add(&handler);
+	itr_enable(handler.it);
+
+	va = core_mmu_get_va(SRC_BASE, MEM_AREA_IO_SEC, 1);
+
+	// Checking if all cpus have shut down
+	for (i = 1; i <= 3; i++) {
+		itr_set_affinity(handler.it, 1 << i);
+		itr_raise_pi(handler.it);
+
+		while (io_read32(va + SRC_GPR1 + i * 8 + 4) != UINT32_MAX)
+			;
+		IMSG("Disabling core %d", i);
+		imx_set_src_gpr(i, 0);
+		val = io_read32(va + SRC_SCR);
+		val &= ~BIT32(SRC_SCR_CORE1_ENABLE_OFFSET + i - 1);
+		val |= BIT32(SRC_SCR_CORE1_RST_OFFSET + i - 1);
+		io_write32(va + SRC_SCR, val);
+	}
+
+	itr_disable(handler.it);
+
+	reset_threads();
+
 	IMSG("Disabled IRQ\n");
+	asm volatile("cpsid i" ::: "memory", "cc");
 
-	// Copy image to normal world
+	IMSG("Copying kernel image to normal world memory.\n");
 	vaddr_t kernel = (vaddr_t)core_mmu_add_mapping(
 		MEM_AREA_RAM_NSEC, boot_args.nsec_entry, size);
 	if (!kernel) {
 		EMSG("Couldn't map kernel memory!\n");
 		return;
 	}
-	if (virt_to_phys(kernel) != 0x12000000) {
-		EMSG("Wrong mapping of kernel memory!\n");
-		EMSG("Requested %x\n", boot_args.nsec_entry);
-		return;
-	}
-	IMSG("img (va): %x", img);
-	IMSG("img (pa): %x", virt_to_phys(img));
-	IMSG("kernel (va): %x", kernel);
-	IMSG("kernel (pa): %x", virt_to_phys(kernel));
-
-	char *src = (char *)img;
-	char *dst = (char *)kernel;
-
-	while (size--) {
-		if (size % 0x100000 == 0) {
-			IMSG("size: %zu", size);
-			IMSG("src (va): %x", src);
-			IMSG("src (pa): %x", virt_to_phys(src));
-			IMSG("dst (va): %x", dst);
-			IMSG("dst (pa): %x", virt_to_phys(dst));
-		}
-		*dst++ = *src++;
-	}
-
+	memcpy((void *)kernel, img, size);
 	IMSG("0x12000000: %x", io_read32(kernel));
-
-	// memcpy_print(kernel, img, size, true);
 
 	/* Disable L2 cache (is this really necessary?)*/
 
@@ -163,107 +191,53 @@ static void restart_normal_world(void *img, size_t size)
 	// IMSG("Cleaned and disabled chache.\n");
 
 	// Do the actual reset
+	// print_kernel_stack();
+
+	IMSG("Resetting normal world context in secure monitor.");
+	struct sm_nsec_ctx *nsec_ctx;
+	nsec_ctx = sm_get_nsec_ctx();
+	memset(nsec_ctx, 0, sizeof(struct sm_nsec_ctx));
+
+	IMSG("Initializing normal world context in secure monitor.");
+	IMSG("  nsec_entry: 0x%x", boot_args.nsec_entry);
 	init_sec_mon(boot_args.nsec_entry);
+
+	IMSG("Executing reboot.");
+	IMSG("  dt_addr   : 0x%x", boot_args.dt_addr);
+	IMSG("  boot_args : %x", boot_args.args);
 	fptr = (void *)virt_to_phys(reset_linux);
 	fptr(boot_args.dt_addr, boot_args.args);
 }
 
-static TEE_Result update_image(uint32_t nParamTypes,
-			       TEE_Param pParams[TEE_NUM_PARAMS] __unused)
+TEE_Result update_image(void **img)
 {
-	uint32_t expected_ptypes =
-		TEE_PARAM_TYPES(TEE_PARAM_TYPE_NONE, TEE_PARAM_TYPE_NONE,
-				TEE_PARAM_TYPE_NONE, TEE_PARAM_TYPE_NONE);
-	unsigned int res;
-	size_t out_len;
-	vaddr_t va;
-	uint32_t val;
-	int i;
-	static void *img;
-
-	if (nParamTypes != expected_ptypes)
-		return TEE_ERROR_BAD_PARAMETERS;
+	TEE_Result res;
 
 	IMSG("Getting kernel image size from normal world.\n");
 
 	res = tee_invoke_supp_plugin_rpc(&fs_load_uuid, FS_LOAD_KERNEL_IMAGE, 0,
-					 NULL, 0, &out_len);
+					 NULL, 0, &size);
 	if (res != TEE_ERROR_SHORT_BUFFER) {
 		EMSG("Error invoking fs-load: %x\n", res);
+		return res;
 	}
 
-	malloc_add_pool(image, image_size);
-
-	img = malloc(out_len);
-	IMSG("out_len: %zu\n", out_len);
-	IMSG("img: %px\n", img);
+	if (!*img) {
+		malloc_add_pool(image, image_size);
+		*img = malloc(size);
+	} else {
+		free(*img);
+		*img = malloc(size);
+	}
+		// imgg = *img;
 
 	res = tee_invoke_supp_plugin_rpc(&fs_load_uuid, FS_LOAD_KERNEL_IMAGE, 0,
-					 img, out_len, &out_len);
+					 *img, size, &size);
 	if (res != TEE_SUCCESS) {
 		EMSG("Error invoking fs-load: %x\n", res);
+		return res;
 	}
 
-	IMSG("%x", ((uint8_t *)img)[0]);
-	IMSG("%x", ((uint8_t *)img)[1]);
-	IMSG("%x", ((uint8_t *)img)[2]);
-	IMSG("%x", ((uint8_t *)img)[3]);
-	IMSG("%x", ((uint8_t *)img)[4]);
-	IMSG("%x", ((uint8_t *)img)[5]);
-	IMSG("%x", ((uint8_t *)img)[6]);
-	IMSG("%x", ((uint8_t *)img)[7]);
-	IMSG("%x", ((uint8_t *)img)[8]);
-	IMSG("%x", ((uint8_t *)img)[9]);
-
-	IMSG("Current core: %x", __get_core_pos());
-
-	itr_add(&handler);
-	itr_enable(handler.it);
-
-	va = core_mmu_get_va(SRC_BASE, MEM_AREA_IO_SEC, 1);
-
-	// Checking if all cpus have shut down
-	for (i = 1; i <= 3; i++) {
-		itr_set_affinity(handler.it, 1 << i);
-		itr_raise_pi(handler.it);
-
-		while (io_read32(va + SRC_GPR1 + i * 8 + 4) != UINT32_MAX)
-			;
-		IMSG("Disabling core %d", i);
-		imx_set_src_gpr(i, 0);
-		val = io_read32(va + SRC_SCR);
-		val &= ~BIT32(SRC_SCR_CORE1_ENABLE_OFFSET + i - 1);
-		val |= BIT32(SRC_SCR_CORE1_RST_OFFSET + i - 1);
-		io_write32(va + SRC_SCR, val);
-	}
-
-	itr_disable(handler.it);
-
-	restart_normal_world(img, out_len);
-
+	IMSG("Loaded kernel image in secure memory.\n");
 	return TEE_SUCCESS;
 }
-
-static TEE_Result invoke_command(void *pSessionContext __unused,
-				 uint32_t nCommandID, uint32_t nParamTypes,
-				 TEE_Param pParams[TEE_NUM_PARAMS])
-{
-	switch (nCommandID) {
-	case PTA_LINUX_REBOOT_UPDATE:
-		return update_image(nParamTypes, pParams);
-	default:
-		break;
-	}
-
-	return TEE_ERROR_NOT_IMPLEMENTED;
-}
-
-static TEE_Result init(void)
-{
-	return TEE_SUCCESS;
-}
-
-pseudo_ta_register(.uuid = PTA_LINUX_REBOOT_UUID, .name = PTA_NAME,
-		   .flags = PTA_DEFAULT_FLAGS | TA_FLAG_SINGLE_INSTANCE,
-		   .invoke_command_entry_point = invoke_command,
-		   .create_entry_point = init);

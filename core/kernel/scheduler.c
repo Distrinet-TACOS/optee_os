@@ -7,13 +7,14 @@
 #include <mm/core_memprot.h>
 #include <kernel/interrupt.h>
 #include <initcall.h>
-// #include <sys/queue.h>
+#include <sys/queue.h>
 #include <string.h>
 #include <tee_api_types.h>
 #include <trace.h>
 #include <kernel/notif.h>
 
 #include <kernel/scheduler.h>
+#include <console.h>
 
 #define EPITCR 0x00
 #define EPITSR 0x04
@@ -56,14 +57,32 @@ static struct scheduler {
 
 void register_task(const char *name, void (*func)(void))
 {
-	struct task *t = malloc(sizeof(struct task));
+	struct task *t;
+
+	CIRCLEQ_FOREACH(t, &sched.task_list, entries) {
+		if (strcmp(t->name, name)) {
+			return;
+		}
+	}
+
+	t = malloc(sizeof(struct task));
 	t->name = strdup(name);
 	t->func = func;
-
 	CIRCLEQ_INSERT_TAIL(&sched.task_list, t, entries);
 }
 
-static int count = 0;
+void unregister_task(const char *name)
+{
+	struct task *t;
+	CIRCLEQ_FOREACH(t, &sched.task_list, entries) {
+		if (strcmp(t->name, name) == 0) {
+			CIRCLEQ_REMOVE(&sched.task_list, t, entries);
+			free(t);
+			break;
+		}
+	}
+
+}
 
 static enum itr_return schedule_tasks(struct itr_handler *handler __unused)
 {
@@ -74,9 +93,8 @@ static enum itr_return schedule_tasks(struct itr_handler *handler __unused)
 
 	CIRCLEQ_FOREACH(t, &sched.task_list, entries)
 	{
-		// IMSG("Executing task %s, call no. %d\n", t->name, count);
+		// IMSG("Executing task %s\n", t->name);
 		t->func();
-		count++;
 	}
 
 	return ITRR_HANDLED;
@@ -88,11 +106,6 @@ static struct itr_handler schedule_itr = {
 	.handler = schedule_tasks,
 };
 DECLARE_KEEP_PAGER(schedule_itr);
-
-static void lol(void)
-{
-	IMSG("Executing test.\n");
-}
 
 static TEE_Result scheduler_init(void)
 {
@@ -117,8 +130,6 @@ static TEE_Result scheduler_init(void)
 	itr_enable(schedule_itr.it);
 
 	IMSG("Added timer interrupt\n");
-
-	// register_task("test", lol);
 
 	return TEE_SUCCESS;
 }

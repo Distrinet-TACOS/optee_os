@@ -34,9 +34,7 @@ END_FUNC change_to_secure_world
 /* void reset_linux(unsigned long dt_addr, unsigned long args) */
 FUNC reset_linux , : , .identity_map
 UNWIND( .cantunwind)
-	mov	r4, lr
-        mov	r3, r0 /* device tree address */
-        mov	r2, r1 /* boot args */
+	push	{r0, r1}
 
         /* Change to monitor mode */
 	mrs	r1, cpsr
@@ -49,11 +47,11 @@ UNWIND( .cantunwind)
 
 	/* Write 0xc54078 to sctlr */
 	isb
-	read_sctlr r0
-	@ movw	r0, #0x4078
-	@ movt	r0, #0xc5
-	bic r0, r0, #0x1 // Disable mmu
-	write_sctlr r0
+	read_sctlr r2
+	@ movw	r2, #0x4078
+	@ movt	r2, #0xc5
+	bic	r2, r2, #0x1 // Disable mmu
+	write_sctlr r2
 	isb
 
 	// Switch back to secure mode
@@ -63,9 +61,10 @@ UNWIND( .cantunwind)
 	// Switch back to original mode
 	msr	cpsr, r1
 
-	@ bx lr
-
+	pop	{r0, r1}
         mov	r4, #0
+	mov	r3, r0 /* device tree address */
+        mov	r2, r1 /* boot args */
         mov	r1, #0
         mov	r0, #TEESMC_OPTEED_RETURN_ENTRY_DONE
         smc	#0
