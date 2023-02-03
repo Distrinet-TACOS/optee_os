@@ -48,7 +48,7 @@ static const size_t image_size = sizeof(image);
 static enum itr_return turn_cpu_off(struct itr_handler *h);
 
 static struct itr_handler handler = {
-	.it = 122,
+	.it = 139,
 	.handler = turn_cpu_off,
 };
 DECLARE_KEEP_PAGER(handler);

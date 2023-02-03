@@ -113,6 +113,8 @@ static TEE_Result setup(void)
 		register_task("Linux watchdog", task);
 		registered = true;
 	}
+
+	alive = true;
 	return TEE_SUCCESS;
 }
 
