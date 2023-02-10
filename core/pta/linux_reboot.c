@@ -1,20 +1,15 @@
-#include <tee/tee_supp_plugin_rpc.h>
-#include <malloc.h>
-#include <io.h>
-#include <mm/core_memprot.h>
-#include <kernel/misc.h>
-#include <imx.h>
-#include <sm/psci.h>
-#include <kernel/interrupt.h>
-#include <string.h>
-#include <trace.h>
-#include <linux_reboot.h>
-#include <kernel/tz_ssvce_pl310.h>
 #include <kernel/boot.h>
-#include <console.h>
-#include <kernel/unwind.h>
-#include <kernel/scheduler.h>
-#include <sm/sm.h>
+#include <kernel/interrupt.h>
+#include <kernel/misc.h>
+#include <io.h>
+#include <imx.h>
+#include <malloc.h>
+#include <mm/core_memprot.h>
+#include <sm/psci.h>
+#include <string.h>
+#include <tee/tee_supp_plugin_rpc.h>
+
+#include <linux_reboot.h>
 
 #define GICC_EOIR (0x010)
 

@@ -1,9 +1,7 @@
 #ifndef LINUX_REBOOT_H
 #define LINUX_REBOOT_H
 
-#include <types_ext.h>
 #include <tee_internal_api.h>
-#include <kernel/interrupt.h>
 
 void set_nsec_entry_reboot(unsigned long nsec_entry, unsigned long dt_addr,
 			   unsigned long args);

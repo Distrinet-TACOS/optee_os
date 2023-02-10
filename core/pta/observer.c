@@ -1,10 +1,8 @@
-#include <kernel/scheduler.h>
-#include <tee_internal_api.h>
 #include <kernel/pseudo_ta.h>
 #include <kernel/notif.h>
+#include <kernel/scheduler.h>
 #include <console.h>
 #include <linux_reboot.h>
-#include <kernel/interrupt.h>
 
 #define PTA_NAME "observer.pta"
 
