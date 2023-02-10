@@ -122,10 +122,8 @@ static TEE_Result update(void)
 {
 	alive = true;
 	if (count == -1) {
-		IMSG("Start\n");
 		count = 0;
 	}
-	IMSG("Update\n");
 
 	return TEE_SUCCESS;
 }

@@ -52,6 +52,7 @@ static struct itr_handler handler = {
 	.handler = turn_cpu_off,
 };
 DECLARE_KEEP_PAGER(handler);
+bool interrupt_registered = false;
 
 static enum itr_return turn_cpu_off(struct itr_handler *h __unused)
 {
@@ -85,32 +86,29 @@ void set_nsec_entry_reboot(unsigned long nsec_entry, unsigned long dt_addr,
 
 size_t size;
 
-// static void *imgg;
-
 void restart_normal_world(void *img)
 {
 	void (*fptr)(unsigned long, unsigned long) = NULL;
 	vaddr_t va;
 	uint32_t val;
 	int i;
-	// vaddr_t pl310 = pl310_base();
 	uint32_t cpsr;
 	vaddr_t gicc_base =
 		core_mmu_get_va(GIC_BASE + GICC_OFFSET, MEM_AREA_IO_SEC, 1);
-
-	// unregister_task("Linux watchdog");
 
 	IMSG("Current core: %x", __get_core_pos());
 	asm volatile(" mrs %0, cpsr" : "=r"(cpsr) :);
 	IMSG("CPSR: 0x%x", cpsr);
 
 	IMSG("Acknowledging and leaving FIQ interrupt mode.");
-	// itr_disable(88);
 	io_write32(gicc_base + GICC_EOIR, 88);
 	asm volatile("cps #0x13" ::: "memory", "cc");
 	
 	IMSG("Disabling all other cpus.");
-	itr_add(&handler);
+	if (!interrupt_registered) {
+		itr_add(&handler);
+		interrupt_registered = true;
+	}
 	itr_enable(handler.it);
 
 	va = core_mmu_get_va(SRC_BASE, MEM_AREA_IO_SEC, 1);
@@ -145,53 +143,6 @@ void restart_normal_world(void *img)
 		return;
 	}
 	memcpy((void *)kernel, img, size);
-	IMSG("0x12000000: %x", io_read32(kernel));
-
-	/* Disable L2 cache (is this really necessary?)*/
-
-	// // Disable full-line-of-zeros
-	// write_actlr(read_actlr() & ~(BIT(3) | BIT(2) | BIT(1)));
-	// IMSG("Disabled full-line-of-zeros.\n");
-
-	// // Clean & disable L2 cache
-	// cache_op_outer(DCACHE_CLEAN_INV, NULL, 0);
-	// io_write32(pl310 + PL310_CTRL, 0);
-	// asm volatile("dsb st");
-	// IMSG("Cleaned & disabled L2 cache\n");
-
-	// /*  Flush & turn of caching */
-	// cache_op_inner(DCACHE_CLEAN_INV, NULL, 0);
-	// IMSG("Invoking print function at linux-reboot.c:9b478b\n");
-	// // uint32_t cpsr = change_to_normal_world();
-	// asm volatile(
-	// 	/* Change to monitor mode */
-	// 	"mrs	r2, cpsr\n\t"
-	// 	"cps 	#0x16\n\t"
-
-	// 	/* Change to non-secure mode */
-	// 	"mrc p15, 0, r1, c1, c1, 0\n\t"
-	// 	"orr	r1, r1, 0b1\n\t"
-	// 	"mcr p15, 0, r1, c1, c1, 0\n\t"
-
-	// 	"mrc	p15, 0, r0, c1, c0, 0	\n\t"
-	// 	"bic	r0, r0, #0x1000		\n\t" // SCTLR.I
-	// 	"bic	r0, r0, #0x0006		\n\t" // SCTLR.C & SCTLR.A
-	// 	"mcr	p15, 0, r0, c1, c0, 0	\n\t"
-
-	// 	// Switch back to secure mode
-	// 	"bic	r1, r1, 0b1\n\t"
-	// 	"mrc p15, 0, r1, c1, c1, 0\n\t"
-
-	// 	// Switch back to original mode
-	// 	"msr	cpsr, r2\n\t"
-	// );
-	// // change_to_secure_world(cpsr);
-	// IMSG("Invoking print function at linux-reboot.c:6c175a\n");
-	// cache_op_inner(DCACHE_CLEAN_INV, NULL, 0);
-	// IMSG("Cleaned and disabled chache.\n");
-
-	// Do the actual reset
-	// print_kernel_stack();
 
 	IMSG("Resetting normal world context in secure monitor.");
 	struct sm_nsec_ctx *nsec_ctx;
