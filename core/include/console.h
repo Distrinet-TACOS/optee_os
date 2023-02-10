@@ -11,7 +11,6 @@
 
 
 void console_init(void);
-bool console_have_rx_data(void);
 void console_putc(int ch);
 void console_flush(void);
 

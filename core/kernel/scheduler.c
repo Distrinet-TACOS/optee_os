@@ -14,7 +14,6 @@
 #include <kernel/notif.h>
 
 #include <kernel/scheduler.h>
-#include <console.h>
 
 #define EPITCR 0x00
 #define EPITSR 0x04
@@ -88,12 +87,11 @@ static enum itr_return schedule_tasks(struct itr_handler *handler __unused)
 {
 	struct task *t;
 
-	// Clearing interrupt.
+	// Clearing EPIT interrupt.
 	io_write32(sched.epit_base + EPITSR, 0x1);
 
 	CIRCLEQ_FOREACH(t, &sched.task_list, entries)
 	{
-		// IMSG("Executing task %s\n", t->name);
 		t->func();
 	}
 

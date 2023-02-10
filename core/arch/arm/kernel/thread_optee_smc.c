@@ -635,7 +635,6 @@ void reset_threads(void) {
 	int i;
 	for (i = 0; i < CFG_NUM_THREADS; i++) {
 		thr = threads + i;
-		// thread_rpc_free_arg(mobj_get_cookie(thr->rpc_mobj));
 		thr->rpc_arg = NULL;
 		thr->rpc_mobj = NULL;
 	}

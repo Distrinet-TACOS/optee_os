@@ -1,4 +1,3 @@
-#include <kernel/pseudo_ta.h>
 #include <tee/tee_supp_plugin_rpc.h>
 #include <malloc.h>
 #include <io.h>
@@ -17,15 +16,7 @@
 #include <kernel/scheduler.h>
 #include <sm/sm.h>
 
-#define PTA_NAME "linux-reboot.pta"
-
-#define PTA_LINUX_REBOOT_UUID                                                  \
-	{                                                                      \
-		0x9c694c03, 0xdb3a, 0x4653,                                    \
-		{                                                              \
-			0xab, 0xc3, 0xe3, 0x95, 0x52, 0x8e, 0x71, 0x1c         \
-		}                                                              \
-	}
+#define GICC_EOIR (0x010)
 
 #define FS_LOAD_PLUGIN_UUID                                                    \
 	{                                                                      \
@@ -34,16 +25,23 @@
 			0x9f, 0xdc, 0xf5, 0xdf, 0x86, 0x4f, 0x29, 0xc4         \
 		}                                                              \
 	}
-
 static const TEE_UUID fs_load_uuid = FS_LOAD_PLUGIN_UUID;
 
-#define PTA_LINUX_REBOOT_UPDATE 0
 #define FS_LOAD_KERNEL_IMAGE 0
 
-#define GICC_EOIR (0x010)
+static struct boot_args {
+	uint32_t nsec_entry;
+	uint32_t dt_addr;
+	uint32_t args;
+} boot_args;
 
-static uint8_t image[10 * 1024 * 1024];
-static const size_t image_size = sizeof(image);
+void set_nsec_entry_reboot(unsigned long nsec_entry, unsigned long dt_addr,
+			   unsigned long args)
+{
+	boot_args.nsec_entry = nsec_entry;
+	boot_args.dt_addr = dt_addr;
+	boot_args.args = args;
+}
 
 static enum itr_return turn_cpu_off(struct itr_handler *h);
 
@@ -70,40 +68,53 @@ static enum itr_return turn_cpu_off(struct itr_handler *h __unused)
 	return ITRR_HANDLED;
 }
 
-static struct boot_args {
-	uint32_t nsec_entry;
-	uint32_t dt_addr;
-	uint32_t args;
-} boot_args;
+static uint8_t image_mem_pool[10 * 1024 * 1024];
 
-void set_nsec_entry_reboot(unsigned long nsec_entry, unsigned long dt_addr,
-			   unsigned long args)
+TEE_Result update_image(void **img, size_t *size)
 {
-	boot_args.nsec_entry = nsec_entry;
-	boot_args.dt_addr = dt_addr;
-	boot_args.args = args;
+	TEE_Result res;
+
+	IMSG("Getting kernel image size from normal world.\n");
+
+	res = tee_invoke_supp_plugin_rpc(&fs_load_uuid, FS_LOAD_KERNEL_IMAGE, 0,
+					 NULL, 0, size);
+	if (res != TEE_ERROR_SHORT_BUFFER) {
+		EMSG("Error invoking fs-load: %x\n", res);
+		return res;
+	}
+
+	if (!*img) {
+		malloc_add_pool(image_mem_pool, sizeof(image_mem_pool));
+		*img = malloc(*size);
+	} else {
+		free(*img);
+		*img = malloc(*size);
+	}
+
+	res = tee_invoke_supp_plugin_rpc(&fs_load_uuid, FS_LOAD_KERNEL_IMAGE, 0,
+					 *img, *size, size);
+	if (res != TEE_SUCCESS) {
+		EMSG("Error invoking fs-load: %x\n", res);
+		return res;
+	}
+
+	IMSG("Loaded kernel image in secure memory.\n");
+	return TEE_SUCCESS;
 }
 
-size_t size;
-
-void restart_normal_world(void *img)
+void restart_normal_world(void *img, size_t size)
 {
-	void (*fptr)(unsigned long, unsigned long) = NULL;
-	vaddr_t va;
-	uint32_t val;
 	int i;
-	uint32_t cpsr;
-	vaddr_t gicc_base =
-		core_mmu_get_va(GIC_BASE + GICC_OFFSET, MEM_AREA_IO_SEC, 1);
+	uint32_t src;
+	vaddr_t gicc_base = core_mmu_get_va(GIC_BASE + GICC_OFFSET, MEM_AREA_IO_SEC, 1);
+	vaddr_t src_base = core_mmu_get_va(SRC_BASE, MEM_AREA_IO_SEC, 1);
 
 	IMSG("Current core: %x", __get_core_pos());
-	asm volatile(" mrs %0, cpsr" : "=r"(cpsr) :);
-	IMSG("CPSR: 0x%x", cpsr);
 
 	IMSG("Acknowledging and leaving FIQ interrupt mode.");
 	io_write32(gicc_base + GICC_EOIR, 88);
 	asm volatile("cps #0x13" ::: "memory", "cc");
-	
+
 	IMSG("Disabling all other cpus.");
 	if (!interrupt_registered) {
 		itr_add(&handler);
@@ -111,28 +122,27 @@ void restart_normal_world(void *img)
 	}
 	itr_enable(handler.it);
 
-	va = core_mmu_get_va(SRC_BASE, MEM_AREA_IO_SEC, 1);
-
 	// Checking if all cpus have shut down
 	for (i = 1; i <= 3; i++) {
+		IMSG("Disabling core %d", i);
+
 		itr_set_affinity(handler.it, 1 << i);
 		itr_raise_pi(handler.it);
-
-		while (io_read32(va + SRC_GPR1 + i * 8 + 4) != UINT32_MAX)
+		while (io_read32(src_base + SRC_GPR1 + i * 8 + 4) != UINT32_MAX)
 			;
-		IMSG("Disabling core %d", i);
+
 		imx_set_src_gpr(i, 0);
-		val = io_read32(va + SRC_SCR);
-		val &= ~BIT32(SRC_SCR_CORE1_ENABLE_OFFSET + i - 1);
-		val |= BIT32(SRC_SCR_CORE1_RST_OFFSET + i - 1);
-		io_write32(va + SRC_SCR, val);
+		src = io_read32(src_base + SRC_SCR);
+		src &= ~BIT32(SRC_SCR_CORE1_ENABLE_OFFSET + i - 1);
+		src |= BIT32(SRC_SCR_CORE1_RST_OFFSET + i - 1);
+		io_write32(src_base + SRC_SCR, src);
 	}
 
 	itr_disable(handler.it);
 
 	reset_threads();
 
-	IMSG("Disabled IRQ\n");
+	IMSG("Disabling IRQ\n");
 	asm volatile("cpsid i" ::: "memory", "cc");
 
 	IMSG("Copying kernel image to normal world memory.\n");
@@ -156,39 +166,5 @@ void restart_normal_world(void *img)
 	IMSG("Executing reboot.");
 	IMSG("  dt_addr   : 0x%x", boot_args.dt_addr);
 	IMSG("  boot_args : %x", boot_args.args);
-	fptr = (void *)virt_to_phys(reset_linux);
-	fptr(boot_args.dt_addr, boot_args.args);
-}
-
-TEE_Result update_image(void **img)
-{
-	TEE_Result res;
-
-	IMSG("Getting kernel image size from normal world.\n");
-
-	res = tee_invoke_supp_plugin_rpc(&fs_load_uuid, FS_LOAD_KERNEL_IMAGE, 0,
-					 NULL, 0, &size);
-	if (res != TEE_ERROR_SHORT_BUFFER) {
-		EMSG("Error invoking fs-load: %x\n", res);
-		return res;
-	}
-
-	if (!*img) {
-		malloc_add_pool(image, image_size);
-		*img = malloc(size);
-	} else {
-		free(*img);
-		*img = malloc(size);
-	}
-		// imgg = *img;
-
-	res = tee_invoke_supp_plugin_rpc(&fs_load_uuid, FS_LOAD_KERNEL_IMAGE, 0,
-					 *img, size, &size);
-	if (res != TEE_SUCCESS) {
-		EMSG("Error invoking fs-load: %x\n", res);
-		return res;
-	}
-
-	IMSG("Loaded kernel image in secure memory.\n");
-	return TEE_SUCCESS;
+	reset_linux(boot_args.dt_addr, boot_args.args);
 }
