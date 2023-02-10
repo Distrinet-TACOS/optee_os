@@ -17,8 +17,7 @@
 #define PTA_OBSERVER_SETUP 0
 #define PTA_OBSERVER_UPDATE 1
 
-#define NOTIF_VALUE 10
-
+static uint32_t notif_value = 0;
 static void *img;
 static size_t img_size;
 static int count = -1;
@@ -37,7 +36,7 @@ static void print_output(bool alive)
 \033[7;1H\033[38;5;2m    ████    ████    ████\
 \033[8;1H\033[38;5;2m    ████    ████    ████\
 \033[0m\0338",
-				"\0337\
+				    "\0337\
 \033[1;1H\033[38;5;2m    ████    ████    ████\
 \033[2;1H\033[38;5;2m    ████    ████    ████\
 \033[3;1H\033[38;5;2m████                    \
@@ -57,7 +56,7 @@ static void print_output(bool alive)
 \033[7;1H\033[38;5;1m    ████    ████    ████\
 \033[8;1H\033[38;5;1m    ████    ████    ████\
 \033[0m\0338",
-			       "\0337\
+				   "\0337\
 \033[1;1H\033[38;5;1m    ████    ████    ████\
 \033[2;1H\033[38;5;1m    ████    ████    ████\
 \033[3;1H\033[38;5;1m████                    \
@@ -92,7 +91,7 @@ static void observer(void)
 		count++;
 	}
 
-	notif_send_async(NOTIF_VALUE);
+	notif_send_async(notif_value);
 }
 
 static bool registered = false;
@@ -100,6 +99,7 @@ static bool registered = false;
 static TEE_Result setup(void)
 {
 	TEE_Result res;
+
 	res = update_image(&img, &img_size);
 	if (res != TEE_SUCCESS) {
 		EMSG("Error update image: %x\n", res);
@@ -138,6 +138,30 @@ static TEE_Result invoke_command(void *pSessionContext __unused,
 	return TEE_ERROR_NOT_IMPLEMENTED;
 }
 
+static TEE_Result open_session(uint32_t nParamTypes,
+			       TEE_Param pParams[TEE_NUM_PARAMS],
+			       void **ppSessionContext __unused)
+{
+	TEE_Result res;
+	
+	if (nParamTypes != TEE_PARAM_TYPES(TEE_PARAM_TYPE_VALUE_OUTPUT,
+					   TEE_PARAM_TYPE_NONE,
+			    		   TEE_PARAM_TYPE_NONE,
+					   TEE_PARAM_TYPE_NONE))
+		return TEE_SUCCESS;
+
+	if (!notif_value) {
+		res = notif_alloc_async_value(&notif_value);
+		if (res != TEE_SUCCESS) {
+			EMSG("Couldn't allocate an async notification value: %x\n", res);
+			return res;
+		}
+	}
+	pParams[0].value.a = notif_value;
+
+	return TEE_SUCCESS;
+}
+
 static TEE_Result init(void)
 {
 	if (!notif_async_is_enabled() || !notif_async_is_started()) {
@@ -151,4 +175,5 @@ static TEE_Result init(void)
 pseudo_ta_register(.uuid = PTA_OBSERVER_UUID, .name = PTA_NAME,
 		   .flags = PTA_DEFAULT_FLAGS | TA_FLAG_MULTI_SESSION,
 		   .invoke_command_entry_point = invoke_command,
+		   .open_session_entry_point = open_session,
 		   .create_entry_point = init);
