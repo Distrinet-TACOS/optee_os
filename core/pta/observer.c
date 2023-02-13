@@ -1,6 +1,7 @@
 #include <kernel/pseudo_ta.h>
 #include <kernel/notif.h>
-#include <kernel/scheduler.h>
+#include <FreeRTOS/FreeRTOS.h>
+#include <FreeRTOS/task.h>
 #include <console.h>
 #include <linux_reboot.h>
 
@@ -80,18 +81,21 @@ static void print_output(bool alive)
 	console_flush();
 }
 
-static void observer(void)
+static void observer(void *pvParameters __unused)
 {
-	print_output(count == 0);
+	while(true) {
+		print_output(count == 0);
 
-	if (count >= 5) {
-		count = -1;
-		restart_normal_world(img, img_size);
-	} else if (count >= 0) {
-		count++;
+		if (count >= 5) {
+			count = -1;
+			restart_normal_world(img, img_size);
+		} else if (count >= 0) {
+			count++;
+		}
+
+		notif_send_async(notif_value);
+		vTaskDelay(5);
 	}
-
-	notif_send_async(notif_value);
 }
 
 static bool registered = false;
@@ -99,6 +103,8 @@ static bool registered = false;
 static TEE_Result setup(void)
 {
 	TEE_Result res;
+	BaseType_t xReturn = pdFAIL;
+	TaskHandle_t watchdog_handler;
 
 	res = update_image(&img, &img_size);
 	if (res != TEE_SUCCESS) {
@@ -107,7 +113,13 @@ static TEE_Result setup(void)
 	}
 
 	if (!registered) {
-		register_task("Linux observer", observer);
+		xReturn = xTaskCreate(observer, "Linux observer",
+				      configMINIMAL_STACK_SIZE, (void *)NULL,
+				      (UBaseType_t)1, NULL);
+		if(xReturn != pdPASS){
+			EMSG("Couldn't create Linux observer task.");
+			return (TEE_Result) xReturn;
+		}
 		registered = true;
 	}
 
@@ -143,17 +155,17 @@ static TEE_Result open_session(uint32_t nParamTypes,
 			       void **ppSessionContext __unused)
 {
 	TEE_Result res;
-	
-	if (nParamTypes != TEE_PARAM_TYPES(TEE_PARAM_TYPE_VALUE_OUTPUT,
-					   TEE_PARAM_TYPE_NONE,
-			    		   TEE_PARAM_TYPE_NONE,
-					   TEE_PARAM_TYPE_NONE))
+
+	if (nParamTypes !=
+	    TEE_PARAM_TYPES(TEE_PARAM_TYPE_VALUE_OUTPUT, TEE_PARAM_TYPE_NONE,
+			    TEE_PARAM_TYPE_NONE, TEE_PARAM_TYPE_NONE))
 		return TEE_SUCCESS;
 
 	if (!notif_value) {
 		res = notif_alloc_async_value(&notif_value);
 		if (res != TEE_SUCCESS) {
-			EMSG("Couldn't allocate an async notification value: %x\n", res);
+			EMSG("Couldn't allocate an async notification value: %x\n",
+			     res);
 			return res;
 		}
 	}

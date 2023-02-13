@@ -34,7 +34,6 @@
 /* Scheduler includes. */
 #include <FreeRTOS/FreeRTOS.h>
 #include <FreeRTOS/task.h>
-#include <kernel/scheduler.h>
 
 #ifndef configINTERRUPT_CONTROLLER_BASE_ADDRESS
 	#error configINTERRUPT_CONTROLLER_BASE_ADDRESS must be defined.  See https://www.FreeRTOS.org/Using-FreeRTOS-on-Cortex-A-Embedded-Processors.html

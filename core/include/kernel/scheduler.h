@@ -35,7 +35,4 @@
 #define EPIT1_PERIOD_TICKS 100
 #define EPIT1_PERIOD_MS 1 * EPIT1_PERIOD_TICKS
 
-void register_task(const char *name, void (*func)(void));
-void unregister_task(const char *name);
-
 #endif /* SCHEDULER_H */
