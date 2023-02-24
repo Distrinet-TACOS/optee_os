@@ -129,6 +129,8 @@ linkage uint32_t name[num_stacks] \
 
 DECLARE_STACK(stack_tmp, CFG_TEE_CORE_NB_CORE,
 	      STACK_TMP_SIZE + CFG_STACK_TMP_EXTRA, static);
+DECLARE_STACK(stack_fiq, CFG_TEE_CORE_NB_CORE,
+	      STACK_TMP_SIZE + CFG_STACK_TMP_EXTRA, static);
 DECLARE_STACK(stack_abt, CFG_TEE_CORE_NB_CORE, STACK_ABT_SIZE, static);
 #ifndef CFG_WITH_PAGER
 DECLARE_STACK(stack_thread, CFG_NUM_THREADS,
@@ -189,6 +191,7 @@ static void init_canaries(void)
 	}
 
 	INIT_CANARY(stack_tmp);
+	INIT_CANARY(stack_fiq);
 	INIT_CANARY(stack_abt);
 #if !defined(CFG_WITH_PAGER) && !defined(CFG_VIRTUALIZATION)
 	INIT_CANARY(stack_thread);
@@ -217,6 +220,15 @@ void thread_check_canaries(void)
 		if (*canary != END_CANARY_VALUE)
 			CANARY_DIED(stack_tmp, end, n, canary);
 	}
+
+	// for (n = 0; n < ARRAY_SIZE(stack_fiq); n++) {
+	// 	canary = &GET_START_CANARY(stack_fiq, n);
+	// 	if (*canary != START_CANARY_VALUE)
+	// 		CANARY_DIED(stack_fiq, start, n, canary);
+	// 	canary = &GET_END_CANARY(stack_fiq, n);
+	// 	if (*canary != END_CANARY_VALUE)
+	// 		CANARY_DIED(stack_fiq, end, n, canary);
+	// }
 
 	for (n = 0; n < ARRAY_SIZE(stack_abt); n++) {
 		canary = &GET_START_CANARY(stack_abt, n);
@@ -345,6 +357,11 @@ static void print_stack_limits(void)
 	for (n = 0; n < CFG_TEE_CORE_NB_CORE; n++) {
 		start = GET_STACK_TOP_SOFT(stack_tmp, n);
 		end = GET_STACK_BOTTOM(stack_tmp, n);
+		DMSG("tmp [%zu] 0x%" PRIxVA "..0x%" PRIxVA, n, start, end);
+	}
+	for (n = 0; n < CFG_TEE_CORE_NB_CORE; n++) {
+		start = GET_STACK_TOP_SOFT(stack_fiq, n);
+		end = GET_STACK_BOTTOM(stack_fiq, n);
 		DMSG("tmp [%zu] 0x%" PRIxVA "..0x%" PRIxVA, n, start, end);
 	}
 	for (n = 0; n < CFG_TEE_CORE_NB_CORE; n++) {
@@ -784,6 +801,13 @@ bool get_stack_limits(vaddr_t *start, vaddr_t *end, bool hard)
 			*start = GET_STACK_TOP_SOFT(stack_abt, pos);
 		*end = GET_STACK_BOTTOM(stack_abt, pos);
 		ret = true;
+	} else if (l->flags & THREAD_CLF_FIQ) {
+		if (hard)
+			*start = GET_STACK_TOP_HARD(stack_fiq, pos);
+		else
+			*start = GET_STACK_TOP_SOFT(stack_fiq, pos);
+		*end = GET_STACK_BOTTOM(stack_fiq, pos);
+		ret = true;
 	} else if (!l->flags) {
 		if (ct < 0 || ct >= CFG_NUM_THREADS)
 			goto out;
@@ -937,6 +961,11 @@ static void set_tmp_stack(struct thread_core_local *l, vaddr_t sp)
 {
 	l->tmp_stack_va_end = sp;
 	thread_set_irq_sp(sp);
+}
+
+static void set_fiq_stack(struct thread_core_local *l, vaddr_t sp)
+{
+	l->fiq_stack_va_end = sp;
 	thread_set_fiq_sp(sp);
 }
 
@@ -1204,6 +1233,7 @@ void thread_init_per_cpu(void)
 	init_sec_mon_stack(pos);
 
 	set_tmp_stack(l, GET_STACK_BOTTOM(stack_tmp, pos) - STACK_TMP_OFFS);
+	set_fiq_stack(l, GET_STACK_BOTTOM(stack_fiq, pos));
 	set_abt_stack(l, GET_STACK_BOTTOM(stack_abt, pos));
 
 	thread_init_vbar(get_excp_vect());

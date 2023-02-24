@@ -11,19 +11,37 @@
 #include <tee_api_types.h>
 #include <trace.h>
 #include <kernel/notif.h>
-#include <kernel/scheduler.h>
-
 #include <FreeRTOS/FreeRTOS.h>
 #include <FreeRTOS/task.h>
+#include <linux_reboot.h>
+
+#include <kernel/scheduler.h>
+
 
 static uint32_t base;
+/* FreeRTOS IRQ Handler */
+extern void FreeRTOS_FIQ_Handler(uint32_t iar, struct thread_fiq_regs *itr_regs);
+static bool should_restart;
 
-static enum itr_return epit_interrupt_handler(struct itr_handler *h __unused)
+void notify_restart(void) {
+	should_restart = true;
+}
+
+static enum itr_return epit_interrupt_handler(struct itr_handler *h)
 {
-	/* Clearing interrupt */
+	/* FreeRTOS tick handler */
+	FreeRTOS_Tick_Handler();
+	/* Clearing EPIT interrupt source */
 	io_write32(base + EPITSR, 0x1);
+	/* Write EOIR register in FreeRTOS_FIQ_Handler from portASM.S */
+	FreeRTOS_FIQ_Handler(h->it, h->itr_regs);
 
-	return ITRR_HANDLED;
+	if (should_restart) {
+		should_restart = false;
+		restart_normal_world();
+	}
+
+	return ITRR_HANDLED_HARDWARE;
 }
 
 static struct itr_handler schedule_itr = {

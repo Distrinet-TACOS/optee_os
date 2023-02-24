@@ -35,4 +35,6 @@
 #define EPIT1_PERIOD_TICKS 100
 #define EPIT1_PERIOD_MS 1 * EPIT1_PERIOD_TICKS
 
+void notify_restart(void);
+
 #endif /* SCHEDULER_H */

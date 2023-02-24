@@ -25,6 +25,8 @@
  * 1 tab == 4 spaces!
  */
 
+#include <generated/asm-defines.h>
+
 	.eabi_attribute Tag_ABI_align_preserved, 1
 	.text
 	.arm
@@ -224,39 +226,25 @@ switch_before_exit_from_optee:
 
 	// Get control block
 	push	{r0}
-	ldr	r0, pxOpteeTopOfStackConst
+	ldr	r0, pxOpteeBottomOfStackConst
 	ldr	r0, [r0]
 
-	// Store r0-r7
-	stmfd	r0!, {r1-r7}
+	// Store r0-r12
+	stmfd	r0!, {r1-r12}
 	pop	{r1}
 	stmfd	r0!, {r1}
 
-	// Save banked SPSR, sp & lr
+	// Save SPSR, sp & lr
 	mrs	r1, spsr
-	stmfd	r0!, {r1, sp, lr} // Technically using sp in this list is deprecated.
+	stmfd	r0!, {r1, sp, lr}
 
-	// Save bandked r8-r12 if in FIQ mode
-	mrs	r1, cpsr
-	and	r1, r1, #MODE_MASK
-	cmp	r1, #FIQ_MODE
-	bne	1f
-	stmfd	r0!, {r8-r12}
-1:
 	// Save CPSR
 	mrs	r1, cpsr
 	stmfd	r0!, {r1}
 
-	// Change to SYS for access to banked registers
-	cps	#SYS_MODE
-
-	// Store r8-r12, sp & lr
-	stmfd	r0!, {r8-r12, sp, lr} // Technically using sp in this list is deprecated.
-
 	// Save control block end & set system sp to that end
-	mov	sp, r0
-	ldr	r0, pxOpteeBottomOfStackConst
-	str	sp, [r0]
+	ldr	r1, pxOpteeTopOfStackConst
+	str	r0, [r1]
 
 	.endm
 
@@ -265,28 +253,19 @@ switch_before_exit_from_optee:
 .macro portRESTORE_OPTEE_REG
 
 	// Retrieve control block end
-	ldr	r0, pxOpteeBottomOfStackConst
+	ldr	r0, pxOpteeTopOfStackConst
 	ldr	r0, [r0]
-
-	// Restore r8-r12, sp & lr
-	ldmfd	r0!, {r8-r12, sp, lr} // Technically using sp in this list is deprecated.
 
 	// Restore CPSR
 	ldmfd	r0!, {r1}
 	msr	cpsr, r1
 
-	// Restore r8-r12 if in FIQ mode
-	and	r1, r1, #MODE_MASK
-	cmp	r1, #FIQ_MODE
-	bne	1f
-	ldmfd	r0!, {r8-r12}
-1:
 	// Restore SPSR, sp & lr
-	ldmfd	r0!, {r1, sp, lr} // Technically using sp in this list is deprecated.
+	ldmfd	r0!, {r1, sp, lr}
 	msr	spsr, r1
 
-	// Restore r0-r7
-	ldmfd	r0, {r0-r7}
+	// Restore r0-r12
+	ldmfd	r0, {r0-r12}
 
 	// Return from interrupt handler
 	bx	lr
@@ -368,32 +347,6 @@ save_optee_context:
 	portRESTORE_FREERTOS_CONTEXT
 
 keep_running:
-	/* Restore used registers */
-	POP		{r0-r4, lr}
-
-#ifdef USE_APPLICATION_HANDLER
-	/* Be careful of using a hook function in the FreeRTOS handler on the imx6 with OPTEE
-	 * - IRQ shouldn't be enalable during the execution
-	 * - Be careful of the sp_mode if enabeling FIQ interrupt
-	 * - Check if your interrupt handler is the right one triggered */
-
-	/* Push the return address and SPSR. */
-	PUSH	{lr}
-	MRS		lr, SPSR
-	PUSH	{lr}
-
-	/*	PUSH register into the stack in FIQ mode */
-	/* Change to supervisor mode to allow reentry. */
-	CPS		#SVC_MODE
-
-	/* FIQ and SVC share the same stack so we need do adjust the sp 
-	   by number of elemt pushed * 4 */
-	SUB		sp, sp, #48
-#endif
-	
-	/* Push used registers. */
-	PUSH	{r0-r4, r12}
-
 	/* Increment nesting count.  r3 holds the address of ulPortInterruptNesting
 	for future use.  r1 holds the original ulPortInterruptNesting value for
 	future use. */
@@ -402,31 +355,10 @@ keep_running:
 	ADD		r4, r1, #1
 	STR		r4, [r3]
 
-#ifdef USE_APPLICATION_HANDLER
-	/* Be careful of using a hook function in the FreeRTOS handler on the imx6 with OPTEE
-	 * - IRQ shouldn't be enalable during the execution
-	 * - Be careful of the sp_mode if enabeling FIQ interrupt
-	 * - Check if your interrupt handler is the right one triggered */
-
-	/* Ensure bit 2 of the stack pointer is clear.  r2 holds the bit 2 value for
-	future use.  _RB_ Does this ever actually need to be done provided the start
-	of the stack is 8-byte aligned? */
-	MOV		r2, sp
-	AND		r2, r2, #4
-	SUB		sp, sp, r2
-
-	/* Call the interrupt handler.  r4 pushed to maintain alignment. */
-	PUSH	{r0-r4, lr}
-	LDR		r1, vApplicationFIQHandlerConst
-	BLX		r1
-	POP		{r0-r4, lr}
-	ADD		sp, sp, r2
-#endif
-
 	/* Write the value read from ICCIAR to ICCEOIR. */
 	LDR 	r2, ulICCEOIRConst
 	LDR		r2, [r2]
-	/* r0 hold the ICCIAR passed in parameter in gic_it_handle */
+	/* r0 holds the ICCIAR passed in parameter in gic_it_handle */
 	STR		r0, [r2]
 
 	/* Restore the old nesting count. */
@@ -451,26 +383,11 @@ exit_without_switch:
 	returning. */
 	POP		{r0-r4, r12}
 
-#ifdef USE_APPLICATION_HANDLER
-	/* Be careful of using a hook function in the FreeRTOS handler on the imx6 with OPTEE
-	 * - IRQ shouldn't be enalable during the execution
-	 * - Be careful of the sp_mode if enabeling FIQ interrupt
-	 * - Check if your interrupt handler is the right one triggered */
+	/* Reset registers which were saved in native_intr_handler */
+	add	sp, r1, #THREAD_FIQ_REG_R0
+	pop	{r0-r12}
 
-	/* Restore original SVC sp */
-	ADD		sp, sp, #48
-
-	CPS		#FIQ_MODE
-
-	POP		{lr}
-	MSR		SPSR_cxsf, lr
-	POP		{lr}
-#endif
-
-	/* POP register which are are push in native_intr_handler */
-	POP		{r0-r3, r8-r12, lr}
-
-	MOVS	pc, lr
+	rfefd	sp!
 
 switch_before_exit:
 	/* A context switch is to be performed.  Clear the context switch pending
@@ -482,24 +399,10 @@ switch_before_exit:
 	to the task stack. */
 	POP		{r0-r4, r12}
 
-#ifdef USE_APPLICATION_HANDLER
-	/* Be careful of using a hook function in the FreeRTOS handler on the imx6 with OPTEE
-	 * - IRQ shouldn't be enalable during the execution
-	 * - Be careful of the sp_mode if enabeling FIQ interrupt
-	 * - Check if your interrupt handler is the right one triggered */
-
-	/* Restore original SVC sp */
-	ADD		sp, sp, #48
-
-	CPS		#FIQ_MODE
-
-	POP		{lr}
-	MSR		SPSR_cxsf, lr
-	POP		{lr}
-#endif
-
-	/* POP register which are are push in native_intr_handler */
-	POP		{r0-r3, r8-r12, lr}
+	/* Reset registers which were saved in native_intr_handler */
+	add	sp, r1, #THREAD_FIQ_REG_R0
+	pop	{r0-r12, lr}
+	add	sp, sp, #4
 	
 	portSAVE_CONTEXT
 	/* Call the function that selects the new task to execute.

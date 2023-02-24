@@ -97,22 +97,21 @@ TEE_Result update_image(void **img, size_t *size)
 	return TEE_SUCCESS;
 }
 
-void restart_normal_world(void *img, size_t size)
+TEE_Result prepare_normal_world(void *img, size_t size)
 {
 	int i;
 	uint32_t src;
-	vaddr_t gicc_base = core_mmu_get_va(GIC_BASE + GICC_OFFSET, MEM_AREA_IO_SEC, 1);
 	vaddr_t src_base = core_mmu_get_va(SRC_BASE, MEM_AREA_IO_SEC, 1);
 
 	IMSG("Current core: %x", __get_core_pos());
 
-	IMSG("Acknowledging and leaving FIQ interrupt mode.");
-	io_write32(gicc_base + GICC_EOIR, 88);
-	asm volatile("cps #0x13" ::: "memory", "cc");
+	IMSG("Disabling IRQ\n");
+	asm volatile("cpsid if" ::: "memory", "cc");
 
 	IMSG("Disabling all other cpus.");
 	if (!interrupt_registered) {
 		itr_add(&handler);
+		itr_set_priority(handler.it, 1);
 		interrupt_registered = true;
 	}
 	itr_enable(handler.it);
@@ -137,15 +136,12 @@ void restart_normal_world(void *img, size_t size)
 
 	reset_threads();
 
-	IMSG("Disabling IRQ\n");
-	asm volatile("cpsid i" ::: "memory", "cc");
-
 	IMSG("Copying kernel image to normal world memory.\n");
 	vaddr_t kernel = (vaddr_t)core_mmu_add_mapping(
 		MEM_AREA_RAM_NSEC, boot_args.nsec_entry, size);
 	if (!kernel) {
 		EMSG("Couldn't map kernel memory!\n");
-		return;
+		return TEE_ERROR_OUT_OF_MEMORY;
 	}
 	memcpy((void *)kernel, img, size);
 
@@ -158,6 +154,13 @@ void restart_normal_world(void *img, size_t size)
 	IMSG("  nsec_entry: 0x%x", boot_args.nsec_entry);
 	init_sec_mon(boot_args.nsec_entry);
 
+	return TEE_SUCCESS;
+}
+
+extern void reset_linux(unsigned long dt_addr, unsigned long args);
+
+void restart_normal_world(void)
+{
 	IMSG("Executing reboot.");
 	IMSG("  dt_addr   : 0x%x", boot_args.dt_addr);
 	IMSG("  boot_args : %x", boot_args.args);

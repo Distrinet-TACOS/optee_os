@@ -431,25 +431,45 @@ END_FUNC thread_unwind_user_mode
 	 * of VFP registers.
 	 */
 	.ifc	\mode\(),fiq
-	push	{r0-r3, r8-r12, lr}
+	
+	srsfd	sp!, #CPSR_MODE_FIQ
+	push	{r0-r12} /* FIQ state */
+	mov	r0, sp
+	cps	#CPSR_MODE_SYS
+	stmfd	r0!, {r8-r12, sp, lr} /* SYS state */
+	cps	#CPSR_MODE_FIQ
+	mov	sp, r0 /* Set correct sp to enable interrupt nesting */
+	
 	.else
 	push	{r0-r3, r12, lr}
 	.endif
 
 	bl	thread_check_canaries
+	mov	r0, sp
 	bl	itr_core_handler
 
-	mrs	r0, spsr
+	ldr	r0, [sp, #THREAD_FIQ_REG_SPSR_FIQ]
 	cmp_spsr_user_mode r0
 
 	.ifc	\mode\(),fiq
-	pop	{r0-r3, r8-r12, lr}
+	
+	mov	r0, sp
+	cps	#CPSR_MODE_SYS
+	ldmfd	r0!, {r8-r12, sp, lr} /* SYS state */
+	cps	#CPSR_MODE_FIQ
+	mov	sp, r0
+	pop	{r0-r12} /* FIQ state */
+
+	subeq	sp, sp, #4
+	beq	eret_to_user_mode
+	rfefd	sp!
+	
 	.else
 	pop	{r0-r3, r12, lr}
+	beq	eret_to_user_mode
+	movs	pc, lr
 	.endif
 
-	movsne	pc, lr
-	b	eret_to_user_mode
 .endm
 
 /* The handler of foreign interrupt. */

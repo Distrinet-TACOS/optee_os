@@ -1,5 +1,7 @@
 #include <kernel/pseudo_ta.h>
+#include <kernel/interrupt.h>
 #include <kernel/notif.h>
+#include <kernel/scheduler.h>
 #include <FreeRTOS/FreeRTOS.h>
 #include <FreeRTOS/task.h>
 #include <console.h>
@@ -22,9 +24,8 @@ static uint32_t notif_value = 0;
 static void *img;
 static size_t img_size;
 static int count = -1;
-static int i = 0;
 
-static void print_output(bool alive)
+static int print_output(bool alive, int i)
 {
 	const char *p;
 	const char *alive_str[] = { "\0337\
@@ -73,22 +74,26 @@ static void print_output(bool alive)
 	} else {
 		p = dead_str[i];
 	}
-	i = (i + 1) % 2;
 
 	for (p; *p; p++) {
 		console_putc(*p);
 	}
 	console_flush();
+
+	return (i + 1) % 2;
 }
 
 static void observer(void *pvParameters __unused)
 {
-	while(true) {
-		print_output(count == 0);
+	int i = 0;
+
+	while (true) {
+		i = print_output(count == 0, i);
 
 		if (count >= 5) {
 			count = -1;
-			restart_normal_world(img, img_size);
+			prepare_normal_world(img, img_size);
+			notify_restart();
 		} else if (count >= 0) {
 			count++;
 		}
@@ -104,7 +109,6 @@ static TEE_Result setup(void)
 {
 	TEE_Result res;
 	BaseType_t xReturn = pdFAIL;
-	TaskHandle_t watchdog_handler;
 
 	res = update_image(&img, &img_size);
 	if (res != TEE_SUCCESS) {
@@ -116,9 +120,9 @@ static TEE_Result setup(void)
 		xReturn = xTaskCreate(observer, "Linux observer",
 				      configMINIMAL_STACK_SIZE, (void *)NULL,
 				      (UBaseType_t)1, NULL);
-		if(xReturn != pdPASS){
+		if (xReturn != pdPASS) {
 			EMSG("Couldn't create Linux observer task.");
-			return (TEE_Result) xReturn;
+			return (TEE_Result)xReturn;
 		}
 		registered = true;
 	}

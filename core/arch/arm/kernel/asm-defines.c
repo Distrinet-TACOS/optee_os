@@ -27,6 +27,12 @@ DEFINES
 	DEFINE(THREAD_SVC_REG_R5, offsetof(struct thread_svc_regs, r5));
 	DEFINE(THREAD_SVC_REG_R6, offsetof(struct thread_svc_regs, r6));
 
+	DEFINE(THREAD_FIQ_REG_R8_FIQ, offsetof(struct thread_fiq_regs, r8_fiq));
+	DEFINE(THREAD_FIQ_REG_R0, offsetof(struct thread_fiq_regs, r0));
+	DEFINE(THREAD_FIQ_REG_R8_SYS, offsetof(struct thread_fiq_regs, r8_sys));
+	DEFINE(THREAD_FIQ_REG_LR_FIQ, offsetof(struct thread_fiq_regs, lr_fiq));
+	DEFINE(THREAD_FIQ_REG_SPSR_FIQ, offsetof(struct thread_fiq_regs, spsr_fiq));
+
 	/* struct thread_ctx */
 	DEFINE(THREAD_CTX_STACK_VA_END, offsetof(struct thread_ctx,
 						 stack_va_end));

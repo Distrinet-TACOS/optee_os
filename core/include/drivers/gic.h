@@ -36,7 +36,7 @@ void gic_init_base_addr(struct gic_data *gd, vaddr_t gicc_base,
 /* initial cpu if only, mainly use for secondary cpu setup cpu interface */
 void gic_cpu_init(struct gic_data *gd);
 
-void gic_it_handle(struct gic_data *gd);
+void gic_it_handle(struct gic_data *gd, struct thread_fiq_regs *regs);
 
 void gic_dump_state(struct gic_data *gd);
 #endif /*__DRIVERS_GIC_H*/

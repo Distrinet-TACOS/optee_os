@@ -390,7 +390,7 @@ PRIVILEGED_DATA static List_t xPendingReadyList;                         /*< Tas
 PRIVILEGED_DATA static volatile UBaseType_t uxCurrentNumberOfTasks = ( UBaseType_t ) 0U;
 PRIVILEGED_DATA static volatile TickType_t xTickCount = ( TickType_t ) configINITIAL_TICK_COUNT;
 PRIVILEGED_DATA static volatile UBaseType_t uxTopReadyPriority = tskIDLE_PRIORITY;
-volatile uint32_t xSchedulerRunning = pdFALSE;
+PRIVILEGED_DATA volatile uint32_t xSchedulerRunning = pdFALSE;
 PRIVILEGED_DATA static volatile TickType_t xPendedTicks = ( TickType_t ) 0U;
 PRIVILEGED_DATA static volatile BaseType_t xYieldPending = pdFALSE;
 PRIVILEGED_DATA static volatile BaseType_t xNumOfOverflows = ( BaseType_t ) 0;
@@ -5446,8 +5446,8 @@ void vInitOPTEEStack(void){
 		}
 	#endif;
 
-	pxOpteeTopOfStack = &( pxOpteeStack[ configMINIMAL_STACK_SIZE - ( uint32_t ) 1 ] );
-	pxOpteeTopOfStack = ( StackType_t * ) ( ( ( portPOINTER_SIZE_TYPE ) pxOpteeTopOfStack ) & ( ~( ( portPOINTER_SIZE_TYPE ) portBYTE_ALIGNMENT_MASK ) ) ); /*lint !e923 !e9033 !e9078 MISRA exception.  Avoiding casts between pointers and integers is not practical.  Size differences accounted for using portPOINTER_SIZE_TYPE type.  Checked by assert(). */
+	pxOpteeBottomOfStack = &( pxOpteeStack[ configMINIMAL_STACK_SIZE - ( uint32_t ) 1 ] );
+	pxOpteeBottomOfStack = ( StackType_t * ) ( ( ( portPOINTER_SIZE_TYPE ) pxOpteeBottomOfStack ) & ( ~( ( portPOINTER_SIZE_TYPE ) portBYTE_ALIGNMENT_MASK ) ) ); /*lint !e923 !e9033 !e9078 MISRA exception.  Avoiding casts between pointers and integers is not practical.  Size differences accounted for using portPOINTER_SIZE_TYPE type.  Checked by assert(). */
 }
 
 #if ( configSUPPORT_STATIC_ALLOCATION == 1 )

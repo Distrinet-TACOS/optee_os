@@ -46,14 +46,17 @@ int dt_get_irq(const void *fdt, int node)
 }
 #endif
 
-void itr_handle(size_t it)
+enum itr_return itr_handle(size_t it, struct thread_fiq_regs *regs)
 {
 	struct itr_handler *h = NULL;
 	bool was_handled = false;
+	enum itr_return ret = ITRR_NONE;
 
 	SLIST_FOREACH(h, &handlers, link) {
 		if (h->it == it) {
-			if (h->handler(h) == ITRR_HANDLED)
+			h->itr_regs = regs;
+			ret = h->handler(h);
+			if (ret != ITRR_NONE)
 				was_handled = true;
 			else if (!(h->flags & ITRF_SHARED))
 				break;
@@ -64,6 +67,8 @@ void itr_handle(size_t it)
 		EMSG("Disabling unhandled interrupt %zu", it);
 		itr_chip->ops->disable(itr_chip, it);
 	}
+
+	return ret;
 }
 
 struct itr_handler *itr_alloc_add(size_t it, itr_handler_t handler,
@@ -137,7 +142,7 @@ void itr_set_priority(size_t it, size_t prio)
 }
 
 /* This function is supposed to be overridden in platform specific code */
-void __weak __noreturn itr_core_handler(void)
+void __weak __noreturn itr_core_handler(struct thread_fiq_regs *regs __unused)
 {
 	panic("Secure interrupt handler not defined");
 }

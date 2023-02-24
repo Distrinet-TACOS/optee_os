@@ -43,6 +43,7 @@ struct thread_core_local {
 	uint64_t x[4];
 #endif
 	vaddr_t tmp_stack_va_end;
+	vaddr_t fiq_stack_va_end;
 	short int curr_thread;
 	uint32_t flags;
 	vaddr_t abt_stack_va_end;
@@ -214,6 +215,35 @@ struct thread_svc_regs {
 	uint64_t pad;
 } __aligned(16);
 #endif /*ARM64*/
+
+#ifdef ARM32
+struct thread_fiq_regs {
+	uint32_t r8_sys;
+	uint32_t r9_sys;
+	uint32_t r10_sys;
+	uint32_t r11_sys;
+	uint32_t r12_sys;
+	uint32_t sp_sys;
+	uint32_t lr_sys;
+	
+	uint32_t r0;
+	uint32_t r1;
+	uint32_t r2;
+	uint32_t r3;
+	uint32_t r4;
+	uint32_t r5;
+	uint32_t r6;
+	uint32_t r7;
+	uint32_t r8_fiq;
+	uint32_t r9_fiq;
+	uint32_t r10_fiq;
+	uint32_t r11_fiq;
+	uint32_t r12_fiq;
+
+	uint32_t lr_fiq;
+	uint32_t spsr_fiq;
+};
+#endif
 
 #ifdef ARM32
 struct thread_ctx_regs {

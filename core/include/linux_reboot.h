@@ -7,8 +7,7 @@ void set_nsec_entry_reboot(unsigned long nsec_entry, unsigned long dt_addr,
 			   unsigned long args);
 
 TEE_Result update_image(void **img, size_t *size);
-void restart_normal_world(void *img, size_t size);
-
-void reset_linux(unsigned long dt_addr, unsigned long args);
+TEE_Result prepare_normal_world(void *img, size_t size);
+void restart_normal_world(void);
 
 #endif /* LINUX_REBOOT_H */
