@@ -352,7 +352,7 @@ PRIVILEGED_DATA TCB_t * volatile pxCurrentTCB = NULL;
 /* Variable used for context switch between OPTEE and FreeRTOS */
 volatile StackType_t * pxOpteeTopOfStack = NULL;
 volatile StackType_t * pxOpteeBottomOfStack = NULL;
-volatile uint32_t uSwitchFromOPTEE = pdTRUE;
+volatile uint32_t uRunningFreeRTOS = pdFALSE;
 
 extern volatile uint32_t ulPortYieldRequired;
 

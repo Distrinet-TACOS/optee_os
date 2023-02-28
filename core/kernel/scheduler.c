@@ -21,6 +21,7 @@
 static uint32_t base;
 /* FreeRTOS IRQ Handler */
 extern void FreeRTOS_FIQ_Handler(uint32_t iar, struct thread_fiq_regs *itr_regs);
+extern volatile uint32_t uRunningFreeRTOS;
 static bool should_restart;
 
 void notify_restart(void) {
@@ -36,7 +37,7 @@ static enum itr_return epit_interrupt_handler(struct itr_handler *h)
 	/* Write EOIR register in FreeRTOS_FIQ_Handler from portASM.S */
 	FreeRTOS_FIQ_Handler(h->it, h->itr_regs);
 
-	if (should_restart) {
+	if (should_restart && !uRunningFreeRTOS) {
 		should_restart = false;
 		restart_normal_world();
 	}

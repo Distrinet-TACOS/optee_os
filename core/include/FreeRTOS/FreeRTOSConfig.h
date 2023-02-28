@@ -61,9 +61,8 @@
 #define configTIMER_TASK_STACK_DEPTH            configMINIMAL_STACK_SIZE
 
 /* Interrupt nesting behaviour configuration. */
-#define configKERNEL_INTERRUPT_PRIORITY         0
-#define configMAX_SYSCALL_INTERRUPT_PRIORITY    5
-#define configMAX_API_CALL_INTERRUPT_PRIORITY   24
+#define configKERNEL_INTERRUPT_PRIORITY         15
+#define configMAX_API_CALL_INTERRUPT_PRIORITY   8
 
 /* Define to trap errors during development. */
 #define configASSERT( x ) if( ( x ) == 0 ) assert(x)
