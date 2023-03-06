@@ -629,3 +629,13 @@ void thread_rpc_free_global_payload(struct mobj *mobj)
 	thread_rpc_free(OPTEE_RPC_SHM_TYPE_GLOBAL, mobj_get_cookie(mobj),
 			mobj);
 }
+
+void reset_threads(void) {
+	struct thread_ctx *thr;
+	int i;
+	for (i = 0; i < CFG_NUM_THREADS; i++) {
+		thr = threads + i;
+		thr->rpc_arg = NULL;
+		thr->rpc_mobj = NULL;
+	}
+}

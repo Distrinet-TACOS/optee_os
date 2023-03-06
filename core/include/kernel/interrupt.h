@@ -32,6 +32,7 @@ struct itr_ops {
 enum itr_return {
 	ITRR_NONE,
 	ITRR_HANDLED,
+	ITRR_HANDLED_HARDWARE,
 };
 
 struct itr_handler;
@@ -43,11 +44,12 @@ struct itr_handler {
 	uint32_t flags;
 	itr_handler_t handler;
 	void *data;
+	struct thread_fiq_regs *itr_regs;
 	SLIST_ENTRY(itr_handler) link;
 };
 
 void itr_init(struct itr_chip *data);
-void itr_handle(size_t it);
+enum itr_return itr_handle(size_t it, struct thread_fiq_regs *regs);
 
 #ifdef CFG_DT
 /*
@@ -91,6 +93,6 @@ void itr_set_priority(size_t it, size_t prio);
  * received. The default function calls panic() immediately, platforms which
  * expects to receive secure interrupts should override this function.
  */
-void itr_core_handler(void);
+void itr_core_handler(struct thread_fiq_regs *regs);
 
 #endif /*__KERNEL_INTERRUPT_H*/

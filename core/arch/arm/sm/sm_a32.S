@@ -207,7 +207,7 @@ LOCAL_FUNC sm_fiq_entry , :
 UNWIND(	.cantunwind)
 	/* FIQ has a +4 offset for lr compared to preferred return address */
 	sub	lr, lr, #4
-	/* sp points just past struct sm_sec_ctx */
+	/* sp points just past struct sm_nsec_ctx */
 	srsdb	sp!, #CPSR_MODE_MON
 	push	{r0-r7}
 

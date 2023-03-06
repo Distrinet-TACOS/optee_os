@@ -16,6 +16,7 @@
 #include <util.h>
 #include <io.h>
 #include <trace.h>
+#include <FreeRTOS/FreeRTOS.h>
 
 /* Offsets from gic.gicc_base */
 #define GICC_CTLR		(0x000)
@@ -453,22 +454,24 @@ void gic_dump_state(struct gic_data *gd)
 	}
 }
 
-void gic_it_handle(struct gic_data *gd)
+void gic_it_handle(struct gic_data *gd, struct thread_fiq_regs *regs)
 {
 	uint32_t iar;
 	uint32_t id;
+	enum itr_return ret = 0;
 
 	iar = gic_read_iar(gd);
 	id = iar & GICC_IAR_IT_ID_MASK;
 
-	if (id <= gd->max_it)
-		itr_handle(id);
-	else if (id >= 1022)
-		;
-	else
+	if (id <= gd->max_it) {
+		ret = itr_handle(id, regs);
+	} else {
 		DMSG("ignoring interrupt %" PRIu32, id);
+	}
 
-	gic_write_eoir(gd, iar);
+	if (ret != ITRR_HANDLED_HARDWARE) {
+		gic_write_eoir(gd, iar);
+	}
 }
 
 static void gic_op_add(struct itr_chip *chip, size_t it,

@@ -431,25 +431,45 @@ END_FUNC thread_unwind_user_mode
 	 * of VFP registers.
 	 */
 	.ifc	\mode\(),fiq
-	push	{r0-r3, r8-r12, lr}
+	
+	srsfd	sp!, #CPSR_MODE_FIQ
+	push	{r0-r12} /* FIQ state */
+	mov	r0, sp
+	cps	#CPSR_MODE_SYS
+	stmfd	r0!, {r8-r12, sp, lr} /* SYS state */
+	cps	#CPSR_MODE_FIQ
+	mov	sp, r0 /* Set correct sp to enable interrupt nesting */
+	
 	.else
 	push	{r0-r3, r12, lr}
 	.endif
 
 	bl	thread_check_canaries
+	mov	r0, sp
 	bl	itr_core_handler
 
-	mrs	r0, spsr
+	ldr	r0, [sp, #THREAD_FIQ_REG_SPSR_FIQ]
 	cmp_spsr_user_mode r0
 
 	.ifc	\mode\(),fiq
-	pop	{r0-r3, r8-r12, lr}
+	
+	mov	r0, sp
+	cps	#CPSR_MODE_SYS
+	ldmfd	r0!, {r8-r12, sp, lr} /* SYS state */
+	cps	#CPSR_MODE_FIQ
+	mov	sp, r0
+	pop	{r0-r12} /* FIQ state */
+
+	subeq	sp, sp, #4
+	beq	eret_to_user_mode
+	rfefd	sp!
+	
 	.else
 	pop	{r0-r3, r12, lr}
+	beq	eret_to_user_mode
+	movs	pc, lr
 	.endif
 
-	movsne	pc, lr
-	b	eret_to_user_mode
 .endm
 
 /* The handler of foreign interrupt. */
@@ -758,6 +778,27 @@ __thread_svc_handler:
 	push	{r0-r7, lr}
 	mrs	r0, spsr
 	push	{r0}
+
+	/* For FreeRTOS */
+	/* Extract and check SVC Number in r0. Only use 8-bits of range here */
+	tst	r0, #0x20		/* Occurred in Thumb state? */
+	ldrhne	r0, [lr, #-2]		/* Yes: load halfword and... */
+	bicne	r0, r0, #0xFF00		/* ...extract comment field. */
+	ldreq	r0, [lr, #-4]		/* No: load word and... */
+	biceq	r0, r0, #0xFF000000	/* ...extract comment field. */
+
+	cmp 	r0, #2			/* Range check */
+	bhi	optee_svc_handler
+	add	pc, pc, r0, LSL #2
+	nop
+
+	/* We keep SVC code #0 to regular optee SVC handler */
+	b	optee_svc_handler	
+freertos_svc_vector_table:
+	bl	FreeRTOS_SVC_Handler		/* SVC #1 */
+	bl	portRESTORE_OPTEE_CONTEXT	/* SVC #2 */
+
+optee_svc_handler:
 	mov	r0, sp
 	bl	thread_svc_handler
 	cpsid	aif	/* In case something was unmasked */

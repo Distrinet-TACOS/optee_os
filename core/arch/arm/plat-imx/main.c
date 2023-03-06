@@ -106,9 +106,9 @@ register_dynamic_shm(CFG_NSEC_DDR_0_BASE, CFG_NSEC_DDR_0_SIZE);
 register_dynamic_shm(CFG_NSEC_DDR_1_BASE, CFG_NSEC_DDR_1_SIZE);
 #endif
 
-void itr_core_handler(void)
+void itr_core_handler(struct thread_fiq_regs *regs)
 {
-	gic_it_handle(&gic_data);
+	gic_it_handle(&gic_data, regs);
 }
 
 void console_init(void)

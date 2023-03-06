@@ -547,6 +547,8 @@ shadow_stack_access_ok:
 
 	mov	r0, r4		/* pageable part address */
 	mov	r1, r5		/* ns-entry address */
+	mov	r2, r6		/* dt_addr */
+	mov	r3, r7		/* boot args */
 	bl	boot_init_primary_early
 #ifndef CFG_VIRTUALIZATION
 	mov	r9, sp
