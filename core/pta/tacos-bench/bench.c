@@ -60,6 +60,46 @@ static TEE_Result print_stamps(uint32_t ptypes,
 	return 0;
 }
 
+static TEE_Result __attribute__((optimize("O0")))
+performance(uint32_t ptypes, TEE_Param params[TEE_NUM_PARAMS])
+{
+	uint32_t expected_ptypes =
+		TEE_PARAM_TYPES(TEE_PARAM_TYPE_VALUE_OUTPUT,
+				TEE_PARAM_TYPE_NONE, TEE_PARAM_TYPE_NONE,
+				TEE_PARAM_TYPE_NONE);
+
+	if (ptypes != expected_ptypes)
+		return TEE_ERROR_BAD_PARAMETERS;
+
+	uint32_t start;
+	uint32_t end;
+
+	uint32_t average = 0;
+	int j;
+	uint32_t p;
+	uint32_t i;
+	uint32_t count = 0;
+	uint32_t x = 1000;
+
+	for (j = 0; j < 10; j++) {
+		stamp(start);
+		for (p = 3; p <= x; p += 2) {
+			for (i = 3; i * i <= p; i += 2) {
+				if (p % i == 0) {
+					count++;
+					break;
+				}
+			}
+		}
+		stamp(end);
+		average += end - start;
+	}
+
+	params[0].value.a = average / 10;
+
+	return TEE_SUCCESS;
+}
+
 static TEE_Result rtt(uint32_t ptypes, TEE_Param params[TEE_NUM_PARAMS])
 {
 	uint32_t expected_ptypes =
@@ -104,6 +144,8 @@ static TEE_Result invoke_command(void *session_ctx __unused, uint32_t cmd_id,
 				 TEE_Param params[TEE_NUM_PARAMS])
 {
 	switch (cmd_id) {
+	case PERF:
+		return performance(param_types, params);
 	case RTT:
 		return rtt(param_types, params);
 	case RTT_MEM:
@@ -129,8 +171,8 @@ static TEE_Result create(void)
 		EMSG("Notifications are not yet available!!!\n");
 		return TEE_ERROR_BAD_STATE;
 	}
-	
-	add_epit_itr();
+
+	// add_epit_itr();
 
 	return TEE_SUCCESS;
 }

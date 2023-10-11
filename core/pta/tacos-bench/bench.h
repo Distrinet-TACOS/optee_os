@@ -13,7 +13,7 @@
 #define EPITCR_ENMOD BIT(1)
 #define EPITCR_OCIEN BIT(2)
 #define EPITCR_RLD BIT(3)
-#define EPITCR_PRESC(x) (((x)&0xfff) << 4)
+#define EPITCR_PRESC(x) (((x) & 0xfff) << 4)
 #define EPITCR_SWR BIT(16)
 #define EPITCR_IOVW BIT(17)
 #define EPITCR_DBGEN BIT(18)
@@ -32,9 +32,12 @@
 #define EPITSR_OCIF BIT(0)
 
 #define MAX_STAMPS 100
-#define stamp(x) asm volatile("mrc p15, 0, %0, c9, c13, 0" : "=r"(x))
+#define isb(option) __asm__ __volatile__("isb " #option : : : "memory")
+#define stamp(x)                                                               \
+	isb();                                                                 \
+	asm volatile("mrc p15, 0, %0, c9, c13, 0" : "=r"(x))
 
-enum bench_cmd { RTT, ASYNC, RTT_MEM, PRINT_MEM, EPIT_SW, EPIT_NW };
+enum bench_cmd { PERF, RTT, ASYNC, RTT_MEM, PRINT_MEM, EPIT_SW, EPIT_NW };
 
 struct timestamps {
 	uint32_t counter;
