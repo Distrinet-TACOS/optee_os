@@ -6,6 +6,7 @@
 #include <assert.h>
 #include <mm/mobj.h>
 #include <kernel/pseudo_ta.h>
+#include <kernel/user_access.h>
 #include <optee_rpc_cmd.h>
 #include <pta_socket.h>
 #include <string.h>
@@ -122,9 +123,11 @@ static TEE_Result socket_send(uint32_t instance_id, uint32_t param_types,
 static TEE_Result socket_recv(uint32_t instance_id, uint32_t param_types,
 			      TEE_Param params[TEE_NUM_PARAMS])
 {
-	struct mobj *mobj;
-	TEE_Result res;
-	void *va;
+	struct thread_param tpm[3] = { };
+	struct mobj *mobj = NULL;
+	TEE_Result res = TEE_SUCCESS;
+	TEE_Result res2 = TEE_SUCCESS;
+	void *va = NULL;
 	uint32_t exp_pt = TEE_PARAM_TYPES(TEE_PARAM_TYPE_VALUE_INPUT,
 					  TEE_PARAM_TYPE_MEMREF_OUTPUT,
 					  TEE_PARAM_TYPE_NONE,
@@ -136,27 +139,29 @@ static TEE_Result socket_recv(uint32_t instance_id, uint32_t param_types,
 		return TEE_ERROR_BAD_PARAMETERS;
 	}
 
-	va = thread_rpc_shm_cache_alloc(THREAD_SHM_CACHE_USER_SOCKET,
-					THREAD_SHM_TYPE_APPLICATION,
-					params[1].memref.size, &mobj);
-	if (!va)
-		return TEE_ERROR_OUT_OF_MEMORY;
+	if (params[1].memref.size) {
+		va = thread_rpc_shm_cache_alloc(THREAD_SHM_CACHE_USER_SOCKET,
+						THREAD_SHM_TYPE_APPLICATION,
+						params[1].memref.size, &mobj);
+		if (!va)
+			return TEE_ERROR_OUT_OF_MEMORY;
+	}
 
-	struct thread_param tpm[3] = {
-		[0] = THREAD_PARAM_VALUE(IN, OPTEE_RPC_SOCKET_RECV, instance_id,
-					 params[0].value.a /* handle */),
-		[1] = THREAD_PARAM_MEMREF(OUT, mobj, 0, params[1].memref.size),
-		[2] = THREAD_PARAM_VALUE(IN, params[0].value.b /* timeout */,
-					 0, 0),
-	};
+	tpm[0] = THREAD_PARAM_VALUE(IN, OPTEE_RPC_SOCKET_RECV, instance_id,
+				    params[0].value.a /* handle */);
+	tpm[1] = THREAD_PARAM_MEMREF(OUT, mobj, 0, params[1].memref.size);
+	tpm[2] = THREAD_PARAM_VALUE(IN, params[0].value.b /* timeout */, 0, 0);
 
 	res = thread_rpc_cmd(OPTEE_RPC_CMD_SOCKET, 3, tpm);
 
-	if (tpm[1].u.memref.size > params[1].memref.size)
-		return TEE_ERROR_GENERIC;
+	if (params[1].memref.size) {
+		res2 = copy_to_user(params[1].memref.buffer, va,
+				    MIN(params[1].memref.size,
+					tpm[1].u.memref.size));
+		if (res2)
+			return res2;
+	}
 	params[1].memref.size = tpm[1].u.memref.size;
-	if (params[1].memref.size)
-		memcpy(params[1].memref.buffer, va, params[1].memref.size);
 
 	return res;
 }

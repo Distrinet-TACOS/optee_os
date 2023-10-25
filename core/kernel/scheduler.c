@@ -81,4 +81,4 @@ static TEE_Result scheduler_init(void)
 	return TEE_SUCCESS;
 }
 
-boot_final(scheduler_init);
+// boot_final(scheduler_init);

@@ -13,6 +13,7 @@
 #include <tee_arith_internal.h>
 #include <tee_internal_api_extensions.h>
 #include <tee_isocket.h>
+#include <tee_tlssocket.h>
 #include <user_ta_header.h>
 #include <utee_syscalls.h>
 #include <util.h>
@@ -46,6 +47,26 @@ const struct user_ta_property tee_props[] = {
 		USER_TA_PROP_TYPE_U32,
 		&(const uint32_t){TEE_ISOCKET_VERSION}
 	},
+		{
+		"gpd.tee.sockets.tls.version",
+		USER_TA_PROP_TYPE_U32,
+		&(const uint32_t){TEE_SOCKET_TLS_API_VERSION}
+	},
+	{
+		"gpd.tee.tls.handshake",
+		USER_TA_PROP_TYPE_U32,
+		&(const uint32_t){TEE_SOCKET_TLS_SUPPORTED_HANDSHAKES}
+	},
+	{
+		"gpd.tee.tls.auth.remote.credential",
+		USER_TA_PROP_TYPE_U32,
+		&(const uint32_t){TEE_SOCKET_TLS_SUPPORTED_SERVER_AUTH}
+	},
+	{
+		"gpd.tee.tls.auth.local.credential",
+		USER_TA_PROP_TYPE_U32,
+		&(const uint32_t){TEE_SOCKET_TLS_SUPPORTED_CLIENT_AUTH}
+	}
 };
 
 static TEE_Result propset_get(TEE_PropSetHandle h,
