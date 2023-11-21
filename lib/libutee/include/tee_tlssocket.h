@@ -251,7 +251,7 @@ typedef struct TEE_tlsSocket_Setup_s {
 
 	/* MBEDTLS specific fields */
 	const unsigned char *persString;
-	uint32_t *persStringLen;
+	size_t persStringLen;
 } TEE_tlsSocket_Setup;
 
 /* declare the function pointer handle */
