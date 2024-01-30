@@ -13,12 +13,12 @@
 
 #define GICC_EOIR (0x010)
 
-#define FS_LOAD_PLUGIN_UUID                                                    \
-	{                                                                      \
-		0xb9b4b4c7, 0x983f, 0x497a,                                    \
-		{                                                              \
-			0x9f, 0xdc, 0xf5, 0xdf, 0x86, 0x4f, 0x29, 0xc4         \
-		}                                                              \
+#define FS_LOAD_PLUGIN_UUID                                            \
+	{                                                              \
+		0xb9b4b4c7, 0x983f, 0x497a,                            \
+		{                                                      \
+			0x9f, 0xdc, 0xf5, 0xdf, 0x86, 0x4f, 0x29, 0xc4 \
+		}                                                      \
 	}
 static const TEE_UUID fs_load_uuid = FS_LOAD_PLUGIN_UUID;
 
@@ -45,7 +45,7 @@ static struct itr_handler handler = {
 	.handler = turn_cpu_off,
 };
 DECLARE_KEEP_PAGER(handler);
-bool interrupt_registered = false;
+static bool interrupt_registered = false;
 
 static enum itr_return turn_cpu_off(struct itr_handler *h __unused)
 {
@@ -99,6 +99,14 @@ TEE_Result update_image(void **img, size_t *size)
 
 TEE_Result prepare_normal_world(void *img, size_t size)
 {
+	return prepare_normal_world_with_copy(img, size, memcpy);
+}
+
+TEE_Result prepare_normal_world_with_copy(void *img, size_t size,
+					  void *(copy)(void *dest,
+						       const void *src,
+						       size_t len))
+{
 	int i;
 	uint32_t src;
 	vaddr_t src_base = core_mmu_get_va(SRC_BASE, MEM_AREA_IO_SEC, 1);
@@ -143,7 +151,7 @@ TEE_Result prepare_normal_world(void *img, size_t size)
 		EMSG("Couldn't map kernel memory!\n");
 		return TEE_ERROR_OUT_OF_MEMORY;
 	}
-	memcpy((void *)kernel, img, size);
+	copy((void *)kernel, img, size);
 
 	IMSG("Resetting normal world context in secure monitor.");
 	struct sm_nsec_ctx *nsec_ctx;

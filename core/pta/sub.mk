@@ -16,3 +16,4 @@ subdirs-y += bcm
 srcs-y += linux_reboot_a32.S
 srcs-y += linux_reboot.c
 srcs-y += observer.c
+srcs-y += updater.c

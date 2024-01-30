@@ -4,3 +4,4 @@ out
 .cproject
 .project
 .clang-format
+compile_commands.json

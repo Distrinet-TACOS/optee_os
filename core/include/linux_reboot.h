@@ -8,6 +8,10 @@ void set_nsec_entry_reboot(unsigned long nsec_entry, unsigned long dt_addr,
 
 TEE_Result update_image(void **img, size_t *size);
 TEE_Result prepare_normal_world(void *img, size_t size);
+TEE_Result prepare_normal_world_with_copy(void *img, size_t size,
+					  void *(copy)(void *dest,
+						       const void *src,
+						       size_t len));
 void restart_normal_world(void);
 
 #endif /* LINUX_REBOOT_H */
